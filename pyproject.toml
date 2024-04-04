@@ -56,6 +56,7 @@ pytest-mock = "^3.12.0"
 PyQRCode = "^1.2.1"
 pycryptodome = "^3.17.0"
 poethepoet = "^0.24.4"
+pyserial = "^3.5"
 
 [tool.poetry.extras]
 docs = ["mkdocs", "mkdocs-material", "mkdocs-static-i18n", "pymdown-extensions"]
@@ -111,9 +112,15 @@ simulator-cube = "python simulator/simulator.py --device maixpy_cube"
 simulator.ref = "simulator-amigo"
 simulator-m5.ref = "simulator-m5stickv"
 
-# other tasks
+# other helper tasks
+# git
 git-update = "git submodule update --init --recursive"
 git-pull = "git pull git@github.com:selfcustody/krux.git"
+
+# flash  
+flash-cmd = "python firmware/Kboot/build/ktool.py -b 1500000 build/kboot.kfpkg"
+flash = ["flash-cmd -B goE"]
+flash-dock = ["flash-cmd -B dan"]
 
 # task for bdftokff?
 # python bdftokff.py True
