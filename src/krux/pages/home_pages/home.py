@@ -21,6 +21,7 @@
 # THE SOFTWARE.
 
 import gc
+from ...display import BOTTOM_PROMPT_LINE
 from ...qr import FORMAT_NONE, FORMAT_PMOFN
 from ...krux_settings import t, Settings
 from .. import (
@@ -38,7 +39,7 @@ class Home(Page):
         home_menu = [
             (t("Backup Mnemonic"), self.backup_mnemonic),
             (t("Extended Public Key"), self.public_key),
-            (t("Wallet Descriptor"), self.wallet),
+            (t("Wallet"), self.wallet),
             (t("Address"), self.addresses_menu),
             (t("Sign"), self.sign),
             (t("Shutdown"), self.shutdown),
@@ -62,12 +63,111 @@ class Home(Page):
         pubkey_viewer = PubkeyView(self.ctx)
         return pubkey_viewer.public_key()
 
-    def wallet(self):
-        """Handler for the 'wallet' menu item"""
+    def wallet_descriptor(self):
+        """Handler for the 'wallet descriptor' menu item"""
         from .wallet_descriptor import WalletDescriptor
 
         wallet_descriptor = WalletDescriptor(self.ctx)
         return wallet_descriptor.wallet()
+
+    def passphrase(self):
+        """Add or replace wallet's passphrase"""
+        self.ctx.display.clear()
+        self.ctx.display.draw_centered_text(t("Add or change wallet passphrase."))
+        if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
+            return MENU_CONTINUE
+
+        from ..wallet_settings import PassphraseEditor
+        from ...key import Key
+        from ...wallet import Wallet
+
+        passphrase_editor = PassphraseEditor(self.ctx)
+        passphrase = passphrase_editor.load_passphrase_menu()
+        if passphrase is None:
+            return MENU_CONTINUE
+
+        self.ctx.wallet = Wallet(
+            Key(
+                self.ctx.wallet.key.mnemonic,
+                self.ctx.wallet.key.multisig,
+                self.ctx.wallet.key.network,
+                passphrase,
+                self.ctx.wallet.key.account_number,
+            )
+        )
+        return MENU_CONTINUE
+
+    def customize(self):
+        """Handler for the 'Customize' Wallet menu item"""
+        self.ctx.display.clear()
+        self.ctx.display.draw_centered_text(
+            t(
+                "Customizing your wallet will generate a new Key,"
+                "and any existing passphrase will need to be re-entered."
+            )
+        )
+        if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
+            return MENU_CONTINUE
+
+        from ..wallet_settings import WalletSettings
+        from ...key import Key
+        from ...wallet import Wallet
+
+        wallet_settings = WalletSettings(self.ctx)
+        network, multisig, script_type, account_number = (
+            wallet_settings.customize_wallet(self.ctx.wallet.key)
+        )
+        mnemonic = self.ctx.wallet.key.mnemonic
+        self.ctx.wallet = Wallet(
+            Key(
+                mnemonic,
+                multisig,
+                network,
+                "",
+                account_number,
+            )
+        )
+        return MENU_CONTINUE
+
+    def bip85(self):
+        """Handler for the 'BIP85' menu item"""
+        if not self.prompt(
+            t("Generate a BIP85 child mnemonic?"), self.ctx.display.height() // 2
+        ):
+            return MENU_CONTINUE
+
+        from .bip85 import Bip85
+
+        bip85 = Bip85(self.ctx)
+        bip85_child = bip85.export()
+        if bip85_child is not None:
+            from ...key import Key
+            from ...wallet import Wallet
+
+            self.ctx.wallet = Wallet(
+                Key(
+                    bip85_child,
+                    self.ctx.wallet.key.multisig,
+                    self.ctx.wallet.key.network,
+                )
+            )
+        return MENU_CONTINUE
+
+    def wallet(self):
+        """Handler for the 'wallet' menu item"""
+
+        submenu = Menu(
+            self.ctx,
+            [
+                (t("Wallet Descriptor"), self.wallet_descriptor),
+                (t("Passphrase"), self.passphrase),
+                (t("Customize"), self.customize),
+                (t("BIP85"), self.bip85),
+                (t("Back"), lambda: MENU_EXIT),
+            ],
+        )
+        submenu.run_loop()
+        return MENU_CONTINUE
 
     def addresses_menu(self):
         """Handler for the 'address' menu item"""
@@ -138,7 +238,7 @@ class Home(Page):
                 + "\n\n"
                 + t("Some checks cannot be performed.")
             )
-            if not self.prompt(t("Proceed?"), self.ctx.display.bottom_prompt_line):
+            if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
                 return MENU_CONTINUE
 
         # Load a PSBT
