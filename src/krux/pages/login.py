@@ -223,24 +223,21 @@ class Login(Page):
         passphrase = ""
         multisig = Settings().wallet.multisig
         network = NETWORKS[Settings().wallet.network]
-        account_number = 0
+        account = 0
+        script_type = "p2wpkh"
         from ..wallet import Wallet
 
         while True:
-            key = Key(
-                mnemonic,
-                multisig,
-                network,
-                passphrase,
-                account_number,
-            )
+            key = Key(mnemonic, multisig, network, passphrase, account, script_type)
 
             wallet_info = key.fingerprint_hex_str(True) + "\n"
             wallet_info += network["name"] + "\n"
             wallet_info += (
                 t("Single-sig") + "\n" if not multisig else t("Multisig") + "\n"
             )
-            wallet_info += key.derivation_str(True) + "\n"
+            wallet_info += (
+                self.fit_to_line(key.derivation_str(True), crop_middle=False) + "\n"
+            )
             wallet_info += "No Passphrase\n" if not passphrase else "Passphrase: *..*"
 
             self.ctx.display.draw_hcentered_text(wallet_info, info_box=True)
@@ -272,7 +269,7 @@ class Login(Page):
                 from .wallet_settings import WalletSettings
 
                 wallet_settings = WalletSettings(self.ctx)
-                network, multisig, script_type, account_number = (
+                network, multisig, script_type, account = (
                     wallet_settings.customize_wallet(key)
                 )
 

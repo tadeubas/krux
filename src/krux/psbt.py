@@ -100,6 +100,35 @@ class PSBTSigner:
             if self.wallet.policy != self.policy:
                 raise ValueError("policy mismatch")
 
+    def path_mismatch(self):
+        """Verifies if the PSBT path matches wallet's derivation path"""
+        mismatched_paths = []
+        der_path_nodes = len(self.wallet.key.derivation.split("/")) - 1
+        for _input in self.psbt.inputs:
+            if self.policy["type"] == "p2tr":
+                derivations = _input.taproot_bip32_derivations
+            else:
+                derivations = _input.bip32_derivations
+            for pubkey in derivations:
+                if self.policy["type"] == "p2tr":
+                    derivation_path = derivations[pubkey][
+                        1
+                    ].derivation  # ignore taproot leaf
+                else:
+                    derivation_path = derivations[pubkey].derivation
+                textual_path = "m"
+                for index in derivation_path[:der_path_nodes]:
+                    if index >= 2**31:
+                        textual_path += "/{}h".format(index - 2**31)
+                    else:
+                        textual_path += "/{}".format(index)
+                if textual_path != self.wallet.key.derivation:
+                    if textual_path not in mismatched_paths:
+                        mismatched_paths.append(textual_path)
+        if mismatched_paths:
+            return ", ".join(mismatched_paths)
+        return ""
+
     def outputs(self):
         """Returns a list of messages describing where amounts are going"""
         from .format import format_btc
@@ -130,6 +159,7 @@ class PSBTSigner:
             out_policy = get_policy(out, self.psbt.tx.vout[i].script_pubkey, xpubs)
 
             address_from_my_wallet = False
+            address_is_change = False
             # if policy is the same - probably change
             if out_policy == self.policy:
                 # double-check that it's change
@@ -156,17 +186,30 @@ class PSBTSigner:
                         elif self.policy["type"] == "p2sh-p2wpkh":
                             sc = script.p2sh(script.p2wpkh(my_hd_prvkey))
 
-                address_from_my_wallet = (
-                    sc.data == self.psbt.tx.vout[i].script_pubkey.data
-                )
+                if self.policy["type"] == "p2tr":
+                    address_from_my_wallet = (
+                        len(list(out.taproot_bip32_derivations.values())) > 0
+                    )
+                    if address_from_my_wallet:
+                        _, der = list(  # _ = leafs
+                            out.taproot_bip32_derivations.values()
+                        )[0]
+                        address_is_change = der.derivation[3] == 1
+                else:
+                    address_from_my_wallet = (
+                        sc.data == self.psbt.tx.vout[i].script_pubkey.data
+                    )
+                    if address_from_my_wallet:
+                        address_is_change = (
+                            len(list(out.bip32_derivations.values())) > 0
+                            and list(out.bip32_derivations.values())[0].derivation[3]
+                            == 1
+                        )
 
             # Address is from my wallet
             if address_from_my_wallet:
                 # is addr_type change?
-                if (
-                    len(list(out.bip32_derivations.values())) > 0
-                    and list(out.bip32_derivations.values())[0].derivation[3] == 1
-                ):
+                if address_is_change:
                     change_list.append(
                         (
                             self.psbt.tx.vout[i].script_pubkey.address(
@@ -257,7 +300,10 @@ class PSBTSigner:
 
         trimmed_psbt = PSBT(self.psbt.tx)
         for i, inp in enumerate(self.psbt.inputs):
-            trimmed_psbt.inputs[i].partial_sigs = inp.partial_sigs
+            if inp.final_scriptwitness:  # If Taproot
+                trimmed_psbt.inputs[i].final_scriptwitness = inp.final_scriptwitness
+            else:
+                trimmed_psbt.inputs[i].partial_sigs = inp.partial_sigs
 
         self.psbt = trimmed_psbt
 

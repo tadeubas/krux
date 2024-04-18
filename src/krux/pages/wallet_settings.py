@@ -35,9 +35,10 @@ from . import (
     NUM_SPECIAL_2,
 )
 from .settings_page import DIGITS
+from ..key import SINGLESIG_SCRIPT_PURPOSE, MULTISIG_SCRIPT_PURPOSE
 
 PASSPHRASE_MAX_LEN = 200
-ACCOUNT_MAX = 999  # Maximum account number
+ACCOUNT_MAX = 2**31 - 1  # Maximum account index
 
 
 class PassphraseEditor(Page):
@@ -99,61 +100,64 @@ class WalletSettings(Page):
 
         network = key.network
         multisig = key.multisig
-        script_type = "84"  # TODO: Add script type selection
-        account_number = key.account_number
+        script_type = key.script_type
+        account = key.account_index
         while True:
             derivation_path = "m/"
             derivation_path += "'/".join(
                 [
-                    "48" if multisig else script_type,
+                    (
+                        str(MULTISIG_SCRIPT_PURPOSE)
+                        if multisig
+                        else str(SINGLESIG_SCRIPT_PURPOSE[script_type])
+                    ),
                     "0" if network == NETWORKS["main"] else "1",
-                    str(account_number) + "'" if not multisig else "0'",
+                    str(account) + "'",
                 ]
             )
             if multisig:
                 derivation_path += "/2'"
 
+            derivation_path = self.fit_to_line(derivation_path, crop_middle=False)
             self.ctx.display.draw_hcentered_text(derivation_path, info_box=True)
             submenu = Menu(
                 self.ctx,
                 [
-                    (t("Network"), self._coin_type),
-                    (t("Single/Multisig"), lambda: None),
-                    (t("Script Type"), self._script_type if not multisig else None),
-                    (
-                        t("Account"),
-                        (
-                            (lambda: self._account_number(account_number))
-                            if not multisig
-                            else None
-                        ),
-                    ),
+                    (t("Network"), lambda: None),
+                    ("Single/Multisig", lambda: None),
+                    (t("Script Type"), (lambda: None) if not multisig else None),
+                    (t("Account"), lambda: None),
                     (t("Back"), lambda: MENU_EXIT),
                 ],
                 offset=2 * FONT_HEIGHT,
             )
-            index, value = submenu.run_loop()
+            index, _ = submenu.run_loop()
             if index == len(submenu.menu) - 1:
                 break
             if index == 0:
-                network = value
+                network = self._coin_type()
             elif index == 1:
                 multisig = self._multisig()
+                if not multisig and script_type == "p2wsh":
+                    # If is not multisig, and script is p2wsh, force to pick a new type
+                    script_type = self._script_type()
             elif index == 2:
-                script_type = value
+                script_type = self._script_type()
             elif index == 3:
-                account_temp = value
+                account_temp = self._account(account)
                 if account_temp is not None:
-                    account_number = account_temp
-        return network, multisig, script_type, account_number
+                    account = account_temp
+        if multisig:
+            script_type = "p2wsh"
+        return network, multisig, script_type, account
 
     def _coin_type(self):
         """Network selection menu"""
         submenu = Menu(
             self.ctx,
             [
-                (t("Mainnet"), lambda: None),
-                (t("Testnet"), lambda: None),
+                ("Mainnet", lambda: None),
+                ("Testnet", lambda: None),
             ],
             disable_statusbar=True,
         )
@@ -178,34 +182,34 @@ class WalletSettings(Page):
         submenu = Menu(
             self.ctx,
             [
-                (t("Legacy") + " - 44", None),  #  lambda: "44"),
-                (t("Nested Segwit") + " - 49", None),  #  lambda: "49"),
-                (t("Native Segwit") + " - 84", lambda: "84"),
-                (t("Taproot") + " - 86", None),  # lambda: "86"),
+                ("Legacy - 44 (soon)", None),  #  lambda: "44"),
+                ("Nested Segwit (soon) - 49", None),  #  lambda: "49"),
+                ("Native Segwit - 84", lambda: "p2wpkh"),
+                ("Taproot - 86 (Experimental)", lambda: "p2tr"),
             ],
             disable_statusbar=True,
         )
-        _, purpose = submenu.run_loop()
-        return purpose
+        _, script_type = submenu.run_loop()
+        return script_type
 
-    def _account_number(self, initial_account_number=None):
-        """Account number input"""
+    def _account(self, initial_account=None):
+        """Account input"""
         account = self.capture_from_keypad(
-            t("Account Number"),
+            t("Account Index"),
             [DIGITS],
             starting_buffer=(
-                str(initial_account_number)
-                if initial_account_number is not None
-                else ""
+                str(initial_account) if initial_account is not None else ""
             ),
         )
         if account == ESC_KEY:
             return None
         try:
-            account_number = int(account)
-            if account_number > ACCOUNT_MAX:
+            account = int(account)
+            if account > ACCOUNT_MAX:
                 raise ValueError
         except:
-            self.flash_text(t("Insert an account between 0 and 999"))
+            self.flash_error(
+                t("Value %s out of range: [%s, %s]") % (account, 0, ACCOUNT_MAX)
+            )
             return None
-        return account_number
+        return account

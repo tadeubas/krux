@@ -31,23 +31,34 @@ from .. import (
     MENU_EXIT,
 )
 
+MAX_POLICY_COSIGNERS_DISPLAYED = 5
+
 
 class Home(Page):
     """Home is the main menu page of the app"""
 
     def __init__(self, ctx):
-        home_menu = [
-            (t("Backup Mnemonic"), self.backup_mnemonic),
-            (t("Extended Public Key"), self.public_key),
-            (t("Wallet"), self.wallet),
-            (t("Address"), self.addresses_menu),
-            (t("Sign"), self.sign),
-            (t("Shutdown"), self.shutdown),
-        ]
-        if Settings().security.hide_mnemonic:
-            home_menu.pop(0)
-
-        super().__init__(ctx, Menu(ctx, home_menu))
+        super().__init__(
+            ctx,
+            Menu(
+                ctx,
+                [
+                    (
+                        t("Backup Mnemonic"),
+                        (
+                            self.backup_mnemonic
+                            if not Settings().security.hide_mnemonic
+                            else None
+                        ),
+                    ),
+                    (t("Extended Public Key"), self.public_key),
+                    (t("Wallet"), self.wallet),
+                    (t("Address"), self.addresses_menu),
+                    (t("Sign"), self.sign),
+                    (t("Shutdown"), self.shutdown),
+                ],
+            ),
+        )
 
     def backup_mnemonic(self):
         """Handler for the 'Backup Mnemonic' menu item"""
@@ -72,9 +83,9 @@ class Home(Page):
 
     def passphrase(self):
         """Add or replace wallet's passphrase"""
-        self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(t("Add or change wallet passphrase."))
-        if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
+        if not self.prompt(
+            t("Add or change wallet passphrase?"), self.ctx.display.height() // 2
+        ):
             return MENU_CONTINUE
 
         from ..wallet_settings import PassphraseEditor
@@ -92,7 +103,8 @@ class Home(Page):
                 self.ctx.wallet.key.multisig,
                 self.ctx.wallet.key.network,
                 passphrase,
-                self.ctx.wallet.key.account_number,
+                self.ctx.wallet.key.account_index,
+                self.ctx.wallet.key.script_type,
             )
         )
         return MENU_CONTINUE
@@ -102,8 +114,8 @@ class Home(Page):
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(
             t(
-                "Customizing your wallet will generate a new Key,"
-                "and any existing passphrase will need to be re-entered."
+                "Customizing your wallet will generate a new Key, "
+                "mnemonic and passphrase will be kept."
             )
         )
         if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
@@ -114,17 +126,19 @@ class Home(Page):
         from ...wallet import Wallet
 
         wallet_settings = WalletSettings(self.ctx)
-        network, multisig, script_type, account_number = (
-            wallet_settings.customize_wallet(self.ctx.wallet.key)
+        network, multisig, script_type, account = wallet_settings.customize_wallet(
+            self.ctx.wallet.key
         )
         mnemonic = self.ctx.wallet.key.mnemonic
+        passphrase = self.ctx.wallet.key.passphrase
         self.ctx.wallet = Wallet(
             Key(
                 mnemonic,
                 multisig,
                 network,
-                "",
-                account_number,
+                passphrase,
+                account,
+                script_type,
             )
         )
         return MENU_CONTINUE
@@ -139,18 +153,7 @@ class Home(Page):
         from .bip85 import Bip85
 
         bip85 = Bip85(self.ctx)
-        bip85_child = bip85.export()
-        if bip85_child is not None:
-            from ...key import Key
-            from ...wallet import Wallet
-
-            self.ctx.wallet = Wallet(
-                Key(
-                    bip85_child,
-                    self.ctx.wallet.key.multisig,
-                    self.ctx.wallet.key.network,
-                )
-            )
+        bip85.export()
         return MENU_CONTINUE
 
     def wallet(self):
@@ -162,7 +165,7 @@ class Home(Page):
                 (t("Wallet Descriptor"), self.wallet_descriptor),
                 (t("Passphrase"), self.passphrase),
                 (t("Customize"), self.customize),
-                (t("BIP85"), self.bip85),
+                ("BIP85", self.bip85),
                 (t("Back"), lambda: MENU_EXIT),
             ],
         )
@@ -257,6 +260,45 @@ class Home(Page):
         from ...psbt import PSBTSigner
 
         signer = PSBTSigner(self.ctx.wallet, data, qr_format)
+        path_mismatch = signer.path_mismatch()
+        if path_mismatch:
+            self.ctx.display.clear()
+            self.ctx.display.draw_centered_text(
+                t("Warning: Mismatch between PSBT and wallet.")
+                + "\n"
+                + "PSBT: "
+                + path_mismatch
+            )
+            if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
+                return MENU_CONTINUE
+        if not self.ctx.wallet.is_loaded() and self.ctx.wallet.is_multisig():
+            from binascii import hexlify
+
+            policy_str = "PSBT policy:\n"
+            policy_str += signer.policy["type"] + "\n"
+            policy_str += (
+                str(signer.policy["m"]) + " of " + str(signer.policy["n"]) + "\n"
+            )
+            fingerprints = []
+            for inp in signer.psbt.inputs:
+                # Do we need to loop through all the inputs or just one?
+                for pub in inp.bip32_derivations:
+                    fingerprint_srt = (
+                        "⊚ " + hexlify(inp.bip32_derivations[pub].fingerprint).decode()
+                    )
+                    if fingerprint_srt not in fingerprints:
+                        if len(fingerprints) > MAX_POLICY_COSIGNERS_DISPLAYED:
+                            fingerprints[-1] = "..."
+                            break
+                        fingerprints.append(fingerprint_srt)
+
+            policy_str += "\n".join(fingerprints)
+            self.ctx.display.clear()
+            self.ctx.display.draw_centered_text(policy_str)
+            if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
+                return MENU_CONTINUE
+        self.ctx.display.clear()
+        self.ctx.display.draw_centered_text(t("Processing.."))
         outputs = signer.outputs()
         for message in outputs:
             self.ctx.display.clear()

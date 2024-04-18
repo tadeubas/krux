@@ -32,6 +32,8 @@ from ..input import (
     BUTTON_TOUCH,
     SWIPE_DOWN,
     SWIPE_UP,
+    FAST_FORWARD,
+    FAST_BACKWARD,
     PRESSED,
     ONE_MINUTE,
 )
@@ -64,6 +66,9 @@ LETTERS = "abcdefghijklmnopqrstuvwxyz"
 UPPERCASE_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 NUM_SPECIAL_1 = "0123456789 !#$%&'()*"
 NUM_SPECIAL_2 = '+,-./:;<=>?@[\\]^_"{|}~'
+
+FAST_FORWARD_MODE = 1
+FAST_BACKWARD_MODE = -1
 
 
 class Page:
@@ -123,6 +128,7 @@ class Page:
         """
         buffer = starting_buffer
         pad = Keypad(self.ctx, keysets)
+        fast_movement = 0
         while True:
             self.ctx.display.clear()
             offset_y = DEFAULT_PADDING
@@ -133,11 +139,30 @@ class Page:
 
             if progress_bar_fn:
                 progress_bar_fn()
-            possible_keys = pad.keys
-            if possible_keys_fn is not None:
-                possible_keys = possible_keys_fn(buffer)
+            if not fast_movement:
+                # Don't recalculate possible keys if fast movement is active
+                possible_keys = pad.keys
+                if possible_keys_fn is not None:
+                    possible_keys = possible_keys_fn(buffer)
+                    pad.get_valid_index(possible_keys)
+            elif possible_keys_fn is not None:
                 pad.get_valid_index(possible_keys)
+
             pad.draw_keys(possible_keys)
+            if fast_movement == FAST_FORWARD_MODE:
+                if self.ctx.input.page_value() == PRESSED:
+                    pad.navigate(BUTTON_PAGE)
+                    time.sleep_ms(100)
+                else:
+                    fast_movement = 0
+                continue
+            elif fast_movement == FAST_BACKWARD_MODE:
+                if self.ctx.input.page_prev_value() == PRESSED:
+                    pad.navigate(BUTTON_PAGE_PREV)
+                    time.sleep_ms(100)
+                else:
+                    fast_movement = 0
+                continue
             btn = self.ctx.input.wait_for_button()
             if self.ctx.input.touch is not None:
                 if btn == BUTTON_TOUCH:
@@ -176,7 +201,12 @@ class Page:
 
                 if changed and go_on_change:
                     break
-
+            elif btn == FAST_FORWARD:
+                fast_movement = FAST_FORWARD_MODE
+                pad.moving_forward = True
+            elif btn == FAST_BACKWARD:
+                pad.moving_forward = False
+                fast_movement = FAST_BACKWARD_MODE
             else:
                 pad.navigate(btn)
 
@@ -291,7 +321,7 @@ class Page:
                 t("Part") + "\n%d / %d" % (i + 1, num_parts) if not title else title
             )
             offset_y = self.ctx.display.qr_offset()
-            if title and self.ctx.display.height() > self.ctx.display.width():
+            if subtitle and self.ctx.display.height() > self.ctx.display.width():
                 offset_y += FONT_HEIGHT
                 # Clean area below QR code to refresh subtitle/part
                 self.ctx.display.fill_rectangle(
@@ -450,11 +480,15 @@ class Page:
         # BUTTON_ENTER
         return answer
 
-    def fit_to_line(self, text, prefix="", fixed_chars=0):
+    def fit_to_line(self, text, prefix="", fixed_chars=0, crop_middle=True):
         """Fits text with prefix plus fixed_chars at the beginning into one line,
         removing the central content and leaving the ends"""
 
         add_chars_amount = self.ctx.display.usable_width() // FONT_WIDTH
+        if len(text) + len(prefix) <= add_chars_amount:
+            return prefix + text
+        if not crop_middle:  # Crop from the end
+            return prefix + text[: add_chars_amount - 2] + ".."
         add_chars_amount -= len(prefix) + fixed_chars + 2
         add_chars_amount //= 2
         return (
@@ -762,9 +796,9 @@ class Menu:
         height_multiplier = self.ctx.display.height()
         height_multiplier -= self.menu_offset  # Top offset
         height_multiplier -= DEFAULT_PADDING  # Bottom padding
-        height_multiplier //= max(offset_y, 1)
+        height_multiplier /= max(offset_y, 1)
         Page.y_keypad_map = [
-            n * height_multiplier + self.menu_offset for n in Page.y_keypad_map
+            int(n * height_multiplier) + self.menu_offset for n in Page.y_keypad_map
         ]
         self.ctx.input.touch.y_regions = Page.y_keypad_map
 
