@@ -170,63 +170,67 @@ class Login(Page):
             + t("(Experimental)")
         )
         if self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
-            from .capture_entropy import CameraEntropy
+            # from .capture_entropy import CameraEntropy
 
-            camera_entropy = CameraEntropy(self.ctx)
-            entropy_bytes = camera_entropy.capture()
+            # camera_entropy = CameraEntropy(self.ctx)
+            # entropy_bytes = camera_entropy.capture()
+
+            entropy_bytes = b'w2G\x7fM\xe9s\xc5\xb9aV\x94\xa3~\nd\x84\xd6\xd8(\x8a\xb3\x80\xe5\xad`\xb0\x0f\x88\x17:m'
+            
             if entropy_bytes is not None:
                 import binascii
 
-                entropy_hash = binascii.hexlify(entropy_bytes).decode()
-                self.ctx.display.clear()
-                self.ctx.display.draw_centered_text(
-                    t("SHA256 of snapshot:") + "\n\n%s" % entropy_hash
-                )
-                self.ctx.input.wait_for_button()
+                # entropy_hash = binascii.hexlify(entropy_bytes).decode()
+                # self.ctx.display.clear()
+                # self.ctx.display.draw_centered_text(
+                #     t("SHA256 of snapshot:") + "\n\n%s" % entropy_hash
+                # )
+                # self.ctx.input.wait_for_button()
 
-                self.ctx.display.clear()
-                self.ctx.display.draw_centered_text(t("Processing.."))
+                for i in range(30):
+                    self.ctx.display.clear()
+                    self.ctx.display.draw_centered_text(t("Processing.."))
 
-                num_bytes = 16 if len_mnemonic == 12 else 32
-                mnemonic_from_bytes = bip39.mnemonic_from_bytes(
-                    entropy_bytes[:num_bytes]
-                )
+                    num_bytes = 16 if len_mnemonic == 12 else 32
+                    mnemonic_from_bytes = bip39.mnemonic_from_bytes(
+                        entropy_bytes[:num_bytes]
+                    )
 
-                # Double mnemonic check
-                if len_mnemonic == 48:
-                    from ..wallet import is_double_mnemonic
+                    # Double mnemonic check
+                    if len_mnemonic == 48:
+                        from ..wallet import is_double_mnemonic
 
-                    if not is_double_mnemonic(mnemonic_from_bytes):
-                        from ..wdt import wdt
-                        import time
+                        if not is_double_mnemonic(mnemonic_from_bytes):
+                            from ..wdt import wdt
+                            import time
 
-                        pre_t = time.ticks_ms()
-                        tries = 0
+                            pre_t = time.ticks_ms()
+                            tries = 0
 
-                        # create two 12w mnemonic with the provided entropy
-                        first_12 = bip39.mnemonic_from_bytes(entropy_bytes[:16])
-                        second_mnemonic_entropy = entropy_bytes[16:32]
-                        double_mnemonic = False
-                        while not double_mnemonic:
-                            wdt.feed()
-                            tries += 1
-                            # increment the second mnemonic entropy
-                            second_mnemonic_entropy = (
-                                int.from_bytes(second_mnemonic_entropy, "big") + 1
-                            ).to_bytes(16, "big")
-                            second_12 = bip39.mnemonic_from_bytes(
-                                second_mnemonic_entropy
+                            # create two 12w mnemonic with the provided entropy
+                            first_12 = bip39.mnemonic_from_bytes(entropy_bytes[:16])
+                            second_mnemonic_entropy = entropy_bytes[16:32]
+                            double_mnemonic = False
+                            while not double_mnemonic:
+                                wdt.feed()
+                                tries += 1
+                                # increment the second mnemonic entropy
+                                second_mnemonic_entropy = (
+                                    int.from_bytes(second_mnemonic_entropy, "big") + 1
+                                ).to_bytes(16, "big")
+                                second_12 = bip39.mnemonic_from_bytes(
+                                    second_mnemonic_entropy
+                                )
+                                mnemonic_from_bytes = first_12 + " " + second_12
+                                double_mnemonic = kruxbip39.mnemonic_is_valid(
+                                    mnemonic_from_bytes
+                                )
+
+                            print(
+                                "Tries: %d" % tries,
+                                "/ %d" % (time.ticks_ms() - pre_t),
+                                "ms",
                             )
-                            mnemonic_from_bytes = first_12 + " " + second_12
-                            double_mnemonic = kruxbip39.mnemonic_is_valid(
-                                mnemonic_from_bytes
-                            )
-
-                        print(
-                            "Tries: %d" % tries,
-                            "/ %d" % (time.ticks_ms() - pre_t),
-                            "ms",
-                        )
 
                 return self._load_key_from_words(mnemonic_from_bytes.split())
         return MENU_CONTINUE
