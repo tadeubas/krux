@@ -15,7 +15,7 @@ def mnemonic_to_bytes(
 
     accumulator = 0
     try:
-        if wordlist is WORDLIST:
+        if wordlist is tuple(WORDLIST):
             for word in words:
                 accumulator = (accumulator << 11) + WORDINDEX[word]
         else:

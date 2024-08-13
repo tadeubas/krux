@@ -187,7 +187,7 @@ class Login(Page):
                 # )
                 # self.ctx.input.wait_for_button()
 
-                for i in range(30):
+                for i in range(10):
                     self.ctx.display.clear()
                     self.ctx.display.draw_centered_text(t("Processing.."))
 
