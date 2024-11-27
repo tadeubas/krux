@@ -43,12 +43,15 @@ class Tools(Page):
     """Krux generic tools"""
 
     def __init__(self, ctx):
+        self.ctx = ctx
+
         super().__init__(
             ctx,
             Menu(
                 ctx,
                 [
                     (t("Check SD Card"), self.sd_check),
+                    (t("Load Krux app"),  self.sd_load_app),
                     (t("Print Test QR"), self.print_test),
                     (t("Create QR Code"), self.create_qr),
                     (t("Descriptor Addresses"), self.descriptor_addresses),
@@ -57,7 +60,80 @@ class Tools(Page):
                 ],
             ),
         )
-        self.ctx = ctx
+
+    def sd_load_app(self):
+        """Handler for the 'Load Krux app' menu item"""
+        text = t("Execute a signed Krux app?")
+        if not self.prompt(text, self.ctx.display.height() // 2):
+            return MENU_CONTINUE
+        
+        # Check if Krux app is enabled
+        from krux.krux_settings import Settings
+        if not Settings().security.allow_kapp:
+            self.flash_error(t("Allow in settings first!"))
+            return MENU_CONTINUE                
+
+        if not self.has_sd_card():
+            self.flash_error(t("SD card not detected."))
+            return MENU_CONTINUE
+
+        # Prompt user for .mpy file
+        from krux.pages.utils import Utils
+        from krux.sd_card import SD_PATH
+        from krux.sd_card import MPY_FILE_EXTENSION
+
+        utils = Utils(self.ctx)
+        filename, data = utils.load_file(
+            MPY_FILE_EXTENSION, prompt=False
+        )
+        del utils
+
+        if not filename:
+            return MENU_CONTINUE
+        
+
+        # Check signature of the file from SD...
+        # TODO: check sign, if ok continue
+
+
+        # Delete any .mpy files from flash VFS to avoid any malicious code import/execution
+        import os
+        from krux.settings import FLASH_PATH
+
+        path_prefix = "/" + FLASH_PATH + "/"        
+        for file in os.listdir(path_prefix):
+            if file.endswith(MPY_FILE_EXTENSION):
+                os.remove(path_prefix + file)
+        
+        # Copy kapp from SD to flash VFS
+        kapp_filename = "kapp"
+        with open(path_prefix + kapp_filename + MPY_FILE_EXTENSION, 'wb') as kapp_file:
+            kapp_file.write(data)
+
+        # Check signature of the file from flash VFS...
+        # TODO: check sign, if ok continue
+        
+
+        # Allows import of files in flash VFS
+        # TODO: Also dinamically enable vsf->execution
+        os.chdir("/" + FLASH_PATH)
+
+        # Import and exec the kapp
+        print(path_prefix + kapp_filename)
+        i_kapp = None
+        try:
+            i_kapp = __import__(kapp_filename)
+            print(i_kapp)
+            i_kapp.run()
+        except Exception as e:
+            print(e)
+            self.flash_error(t("Could not execute") + " " + kapp_filename)
+            return MENU_CONTINUE
+        
+
+        # After execution restart Krux for security
+        from ..power import power_manager
+        power_manager.shutdown()
 
     def flash_tools(self):
         """Handler for the 'Flash Tools' menu item"""
