@@ -139,6 +139,7 @@ class Tools(Page):
                 os.remove(path_prefix + file)
 
         # Copy kapp + sig from SD to flash VFS
+        # sig file allows the check and execution of the kapp at startup for opsec
         kapp_filename = "kapp"
         with open(path_prefix + kapp_filename + MPY_FILE_EXTENSION, "wb") as kapp_file:
             kapp_file.write(data)
@@ -150,7 +151,7 @@ class Tools(Page):
             kapp_sig_file.write(sig_data)
 
         # Allows import of files in flash VFS
-        # TODO: Also dinamically enable vsf->execution
+        # TODO: Dinamically enable vsf->execution
         os.chdir("/" + FLASH_PATH)
 
         # Import and exec the kapp
