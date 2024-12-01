@@ -159,7 +159,13 @@ class Tools(Page):
         try:
             i_kapp = __import__(kapp_filename)
             i_kapp.run()
+
+            # avoids importing from flash VSF
+            os.chdir("/")
         except Exception as e:
+            # avoids importing from flash VSF
+            os.chdir("/")
+            
             print(e)
             self.flash_error(t("Could not execute %s") % filename)
             return MENU_CONTINUE
