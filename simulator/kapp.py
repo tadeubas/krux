@@ -24,9 +24,74 @@ import os
 # avoids importing from flash VSF
 os.chdir("/")
 
+VERSION = "1.0"
+NAME = "Test app"
+
 print("Print executed inside kapp.py")
 
+from krux.pages import Page, Menu, MENU_CONTINUE
+from krux.krux_settings import t
+from krux.display import NARROW_SCREEN_WITH, STATUS_BAR_HEIGHT, FONT_HEIGHT
+from krux.themes import theme
 
-def run():
+
+class KMenu(Menu):
+    """Customizes the page's menu"""
+
+    def draw_wallet_indicator(self):
+        """Customize the top bar"""
+        if self.ctx.display.width() > NARROW_SCREEN_WITH:
+            self.ctx.display.draw_hcentered_text(
+                NAME,
+                STATUS_BAR_HEIGHT - FONT_HEIGHT - 1,
+                theme.highlight_color,
+                theme.info_bg_color,
+            )
+        else:
+            self.ctx.display.draw_string(
+                24,
+                STATUS_BAR_HEIGHT - FONT_HEIGHT - 1,
+                NAME,
+                theme.highlight_color,
+                theme.info_bg_color,
+            )
+
+
+class Kapp(Page):
+    """Represents the page of the kapp"""
+
+    # Used on boot.py when changing the locale on Settings
+    SETTINGS_MENU_INDEX = 2
+
+    def __init__(self, ctx):
+        shtn_reboot_label = (
+            t("Shutdown") if ctx.power_manager.has_battery() else t("Reboot")
+        )
+        super().__init__(
+            ctx,
+            KMenu(
+                ctx,
+                [
+                    (t("About"), self.about),
+                    (shtn_reboot_label, self.shutdown),
+                ],
+                back_label=None,
+            ),
+        )
+
+    def about(self):
+        """Handler for the 'about' menu item"""
+
+        self.ctx.display.clear()
+        self.ctx.display.draw_centered_text(
+            "Krux app\n" + NAME + "\n\n" + t("Version") + "\n%s" % VERSION
+        )
+        self.ctx.input.wait_for_button()
+        return MENU_CONTINUE
+
+
+def run(ctx):
     """Runs this kapp"""
     print("run() func executed on kapp.py")
+
+    Kapp(ctx).run()

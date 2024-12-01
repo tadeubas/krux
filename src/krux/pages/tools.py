@@ -61,7 +61,7 @@ class Tools(Page):
             ),
         )
 
-    def _check_signature(self, path_prefix, filename, data):
+    def _check_signature(self, path_prefix, filename, data_hash):
         from embit import ec
         from ..metadata import SIGNER_PUBKEY
         from krux.sd_card import SIGNATURE_FILE_EXTENSION
@@ -84,9 +84,7 @@ class Tools(Page):
             # Parse, serialize, and reparse to ensure signature is compact prior to verification
             sig = ec.Signature.parse(ec.Signature.parse(sig).serialize())
 
-            import hashlib
-
-            if not pubkey.verify(sig, hashlib.sha256(data).digest()):
+            if not pubkey.verify(sig, data_hash):
                 self.flash_error(t("Bad signature"))
                 return MENU_CONTINUE
         except:
@@ -123,13 +121,25 @@ class Tools(Page):
         if not filename:
             return MENU_CONTINUE
 
+        # Confirm hash string
+        import binascii
+        import hashlib
+
+        data_hash = hashlib.sha256(data).digest()
+        self.ctx.display.clear()
+        self.ctx.display.draw_hcentered_text(
+            filename + "\n\n" + "SHA256:\n" + binascii.hexlify(data_hash).decode()
+        )
+        if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
+            return MENU_CONTINUE
+
         # Check signature of .mpy file in SD
         path_prefix = "/%s/" % SD_PATH
-        if self._check_signature(path_prefix, filename, data) == MENU_CONTINUE:
+        if self._check_signature(path_prefix, filename, data_hash) == MENU_CONTINUE:
             return MENU_CONTINUE
         sig_data = open(path_prefix + filename + SIGNATURE_FILE_EXTENSION, "rb").read()
 
-        # Delete any .mpy files from flash VFS to avoid any malicious code import/execution
+        # Delete any .mpy files from flash VFS to avoid malicious code import/execution
         import os
         from krux.settings import FLASH_PATH
 
@@ -158,18 +168,19 @@ class Tools(Page):
         i_kapp = None
         try:
             i_kapp = __import__(kapp_filename)
-            i_kapp.run()
+            i_kapp.run(self.ctx)
 
             # avoids importing from flash VSF
             os.chdir("/")
         except Exception as e:
             # avoids importing from flash VSF
             os.chdir("/")
-            
+
             print(e)
             self.flash_error(t("Could not execute %s") % filename)
             return MENU_CONTINUE
 
+        print("Exit kapp!")
         # After execution restart Krux (better safe than sorry)
         from ..power import power_manager
 
