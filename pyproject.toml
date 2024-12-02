@@ -132,7 +132,10 @@ flash-dock.ref = "flash-cmd -B dan"
 
 # kapps tasks
 mpy = "./firmware/MaixPy/components/micropython/core/mpy-cross/mpy-cross"
+mpy-all = "find kapps/*.py -type f -exec './firmware/MaixPy/components/micropython/core/mpy-cross/mpy-cross' {} \\;"
+# aliases
 mpy-cross.ref = "mpy"
+mpy-cross-all.ref = "mpy-all"
 
 # task for bdftokff?
 # python bdftokff.py True
