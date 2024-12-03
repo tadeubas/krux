@@ -143,6 +143,7 @@ class Tools(Page):
         import os
         from krux.settings import FLASH_PATH
 
+        found_in_flash_vfs = False
         path_prefix = "/%s/" % FLASH_PATH
         for file in os.listdir(path_prefix):
             if file.endswith(MPY_FILE_EXTENSION):
@@ -152,11 +153,13 @@ class Tools(Page):
                     != data_hash
                 ):
                     os.remove(path_prefix + file)
+                else:
+                    found_in_flash_vfs = True
 
         # Copy kapp + sig from SD to flash VFS if not found
         # sig file allows the check and execution of the kapp at startup for opsec
         kapp_filename = "kapp"
-        if not any(kapp_filename in file for file in os.listdir(path_prefix)):
+        if not found_in_flash_vfs:
             with open(
                 path_prefix + kapp_filename + MPY_FILE_EXTENSION, "wb"
             ) as kapp_file:
