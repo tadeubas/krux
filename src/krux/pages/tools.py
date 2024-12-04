@@ -87,8 +87,9 @@ class Tools(Page):
 
     def sd_load_app(self):  # pylint: disable=R1710
         """Handler for the 'Load Krux app' menu item"""
-        text = t("Execute a signed Krux app?")
-        if not self.prompt(text, self.ctx.display.height() // 2):
+        if not self.prompt(
+            t("Execute a signed Krux app?"), self.ctx.display.height() // 2
+        ):
             return MENU_CONTINUE
 
         # Check if Krux app is enabled
@@ -106,18 +107,21 @@ class Tools(Page):
         from krux.pages.utils import Utils
         from krux.sd_card import MPY_FILE_EXTENSION, SIGNATURE_FILE_EXTENSION, SD_PATH
 
-        utils = Utils(self.ctx)
-        filename, data = utils.load_file(MPY_FILE_EXTENSION, prompt=False)
-        del utils
+        filename, _ = Utils(self.ctx).load_file(
+            MPY_FILE_EXTENSION, prompt=False, only_get_filename=True
+        )
 
         if not filename:
             return MENU_CONTINUE
 
         # Confirm hash string
-        import binascii
-        import hashlib
+        sd_path_prefix = "/%s/" % SD_PATH
+        from krux.firmware import sha256
 
-        data_hash = hashlib.sha256(data).digest()
+        data_hash = sha256(sd_path_prefix + filename)
+
+        import binascii
+
         self.ctx.display.clear()
         self.ctx.display.draw_hcentered_text(
             filename + "\n\n" + "SHA256:\n" + binascii.hexlify(data_hash).decode()
@@ -126,11 +130,10 @@ class Tools(Page):
             return MENU_CONTINUE
 
         # Check signature of .mpy file in SD
-        path_prefix = "/%s/" % SD_PATH
         sig_data = None
         try:
             sig_data = open(
-                path_prefix + filename + SIGNATURE_FILE_EXTENSION, "rb"
+                sd_path_prefix + filename + SIGNATURE_FILE_EXTENSION, "rb"
             ).read()
         except:
             self.flash_error(t("Missing signature file"))
@@ -144,29 +147,33 @@ class Tools(Page):
         from krux.settings import FLASH_PATH
 
         found_in_flash_vfs = False
-        path_prefix = "/%s/" % FLASH_PATH
-        for file in os.listdir(path_prefix):
+        flash_path_prefix = "/%s/" % FLASH_PATH
+        for file in os.listdir(flash_path_prefix):
             if file.endswith(MPY_FILE_EXTENSION):
                 # Only remove .mpy different from what was loaded from SD
-                if (
-                    hashlib.sha256(open(path_prefix + file, "rb").read()).digest()
-                    != data_hash
-                ):
-                    os.remove(path_prefix + file)
+                if sha256(flash_path_prefix + file) != data_hash:
+                    os.remove(flash_path_prefix + file)
                 else:
                     found_in_flash_vfs = True
 
         # Copy kapp + sig from SD to flash VFS if not found
-        # sig file allows the check and execution of the kapp at startup for opsec
+        # sig file will allow the check and execution of the kapp at startup (opsec)
         kapp_filename = "kapp"
         if not found_in_flash_vfs:
             with open(
-                path_prefix + kapp_filename + MPY_FILE_EXTENSION, "wb"
+                flash_path_prefix + kapp_filename + MPY_FILE_EXTENSION,
+                "wb",
+                buffering=0,
             ) as kapp_file:
-                kapp_file.write(data)
+                with open(sd_path_prefix + filename, "rb", buffering=0) as file:
+                    while True:
+                        chunk = file.read(128)
+                        if not chunk:
+                            break
+                        kapp_file.write(chunk)
 
             with open(
-                path_prefix
+                flash_path_prefix
                 + kapp_filename
                 + MPY_FILE_EXTENSION
                 + SIGNATURE_FILE_EXTENSION,
@@ -174,7 +181,7 @@ class Tools(Page):
             ) as kapp_sig_file:
                 kapp_sig_file.write(sig_data)
 
-        del data, sig_data
+        del sig_data
         import gc
 
         gc.collect()
@@ -192,13 +199,18 @@ class Tools(Page):
             # avoids importing from flash VSF
             os.chdir("/")
 
+            # unimport module
+            import sys
+
+            del i_kapp
+            del sys.modules[kapp_filename]
+
             self.flash_error(t("Could not execute %s") % filename)
             return MENU_CONTINUE
 
         # avoids importing from flash VSF
         os.chdir("/")
 
-        print("Exit kapp!")
         # After execution restart Krux (better safe than sorry)
         from ..power import power_manager
 
