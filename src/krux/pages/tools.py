@@ -38,6 +38,8 @@ from ..display import BOTTOM_PROMPT_LINE
 from ..krux_settings import t
 from ..qr import FORMAT_NONE
 
+READABLEBUFFER_SIZE = 128
+
 
 class Tools(Page):
     """Krux generic tools"""
@@ -69,8 +71,7 @@ class Tools(Page):
         try:
             pubkey = ec.PublicKey.from_string(SIGNER_PUBKEY)
         except:
-            self.flash_error(t("Invalid public key"))
-            return MENU_CONTINUE
+            raise ValueError("Invalid public key")
 
         try:
             # Parse, serialize, and reparse to ensure signature is compact prior to verification
@@ -167,7 +168,7 @@ class Tools(Page):
             ) as kapp_file:
                 with open(sd_path_prefix + filename, "rb", buffering=0) as file:
                     while True:
-                        chunk = file.read(128)
+                        chunk = file.read(READABLEBUFFER_SIZE)
                         if not chunk:
                             break
                         kapp_file.write(chunk)
@@ -205,8 +206,7 @@ class Tools(Page):
             del i_kapp
             del sys.modules[kapp_filename]
 
-            self.flash_error(t("Could not execute %s") % filename)
-            return MENU_CONTINUE
+            raise ValueError("Could not execute %s" % filename)
 
         # avoids importing from flash VSF
         os.chdir("/")
