@@ -38,8 +38,6 @@ from ..display import BOTTOM_PROMPT_LINE
 from ..krux_settings import t
 from ..qr import FORMAT_NONE
 
-READABLEBUFFER_SIZE = 128
-
 
 class Tools(Page):
     """Krux generic tools"""
@@ -53,7 +51,7 @@ class Tools(Page):
                 ctx,
                 [
                     (t("Check SD Card"), self.sd_check),
-                    (t("Load Krux app"), self.sd_load_app),
+                    (t("Load Krux app"), self.load_krux_app),
                     (t("Print Test QR"), self.print_test),
                     (t("Create QR Code"), self.create_qr),
                     (t("Descriptor Addresses"), self.descriptor_addresses),
@@ -63,158 +61,13 @@ class Tools(Page):
             ),
         )
 
-    def _check_signature(self, sig, data_hash):
-        from embit import ec
-        from ..metadata import SIGNER_PUBKEY
-
-        pubkey = None
-        try:
-            pubkey = ec.PublicKey.from_string(SIGNER_PUBKEY)
-        except:
-            raise ValueError("Invalid public key")
-
-        try:
-            # Parse, serialize, and reparse to ensure signature is compact prior to verification
-            sig = ec.Signature.parse(ec.Signature.parse(sig).serialize())
-
-            if not pubkey.verify(sig, data_hash):
-                self.flash_error(t("Bad signature"))
-                return MENU_CONTINUE
-        except:
-            self.flash_error(t("Bad signature"))
-            return MENU_CONTINUE
-
-        return None
-
-    def sd_load_app(self):  # pylint: disable=R1710
+    def load_krux_app(self):
         """Handler for the 'Load Krux app' menu item"""
-        if not self.prompt(
-            t("Execute a signed Krux app?"), self.ctx.display.height() // 2
-        ):
-            return MENU_CONTINUE
 
-        # Check if Krux app is enabled
-        from krux.krux_settings import Settings
+        from krux.pages.kapps import Kapps
 
-        if not Settings().security.allow_kapp:
-            self.flash_error(t("Allow in settings first!"))
-            return MENU_CONTINUE
-
-        if not self.has_sd_card():
-            self.flash_error(t("SD card not detected."))
-            return MENU_CONTINUE
-
-        # Prompt user for .mpy file
-        from krux.pages.utils import Utils
-        from krux.sd_card import MPY_FILE_EXTENSION, SIGNATURE_FILE_EXTENSION, SD_PATH
-
-        filename, _ = Utils(self.ctx).load_file(
-            MPY_FILE_EXTENSION, prompt=False, only_get_filename=True
-        )
-
-        if not filename:
-            return MENU_CONTINUE
-
-        # Confirm hash string
-        sd_path_prefix = "/%s/" % SD_PATH
-        from krux.firmware import sha256
-
-        data_hash = sha256(sd_path_prefix + filename)
-
-        import binascii
-
-        self.ctx.display.clear()
-        self.ctx.display.draw_hcentered_text(
-            filename + "\n\n" + "SHA256:\n" + binascii.hexlify(data_hash).decode()
-        )
-        if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
-            return MENU_CONTINUE
-
-        # Check signature of .mpy file in SD
-        sig_data = None
-        try:
-            sig_data = open(
-                sd_path_prefix + filename + SIGNATURE_FILE_EXTENSION, "rb"
-            ).read()
-        except:
-            self.flash_error(t("Missing signature file"))
-            return MENU_CONTINUE
-
-        if self._check_signature(sig_data, data_hash) == MENU_CONTINUE:
-            return MENU_CONTINUE
-
-        # Delete any .mpy files from flash VFS to avoid malicious code import/execution
-        import os
-        from krux.settings import FLASH_PATH
-
-        found_in_flash_vfs = False
-        flash_path_prefix = "/%s/" % FLASH_PATH
-        for file in os.listdir(flash_path_prefix):
-            if file.endswith(MPY_FILE_EXTENSION):
-                # Only remove .mpy different from what was loaded from SD
-                if sha256(flash_path_prefix + file) != data_hash:
-                    os.remove(flash_path_prefix + file)
-                else:
-                    found_in_flash_vfs = True
-
-        # Copy kapp + sig from SD to flash VFS if not found
-        # sig file will allow the check and execution of the kapp at startup (opsec)
-        kapp_filename = "kapp"
-        if not found_in_flash_vfs:
-            with open(
-                flash_path_prefix + kapp_filename + MPY_FILE_EXTENSION,
-                "wb",
-                buffering=0,
-            ) as kapp_file:
-                with open(sd_path_prefix + filename, "rb", buffering=0) as file:
-                    while True:
-                        chunk = file.read(READABLEBUFFER_SIZE)
-                        if not chunk:
-                            break
-                        kapp_file.write(chunk)
-
-            with open(
-                flash_path_prefix
-                + kapp_filename
-                + MPY_FILE_EXTENSION
-                + SIGNATURE_FILE_EXTENSION,
-                "wb",
-            ) as kapp_sig_file:
-                kapp_sig_file.write(sig_data)
-
-        del sig_data
-        import gc
-
-        gc.collect()
-
-        # Allows import of files in flash VFS
-        # TODO: Dinamically enable vsf->execution
-        os.chdir("/" + FLASH_PATH)
-
-        # Import and exec the kapp
-        i_kapp = None
-        try:
-            i_kapp = __import__(kapp_filename)
-            i_kapp.run(self.ctx)
-        except:
-            # avoids importing from flash VSF
-            os.chdir("/")
-
-            # unimport module
-            import sys
-
-            del i_kapp
-            del sys.modules[kapp_filename]
-
-            raise ValueError("Could not execute %s" % filename)
-
-        # avoids importing from flash VSF
-        os.chdir("/")
-
-        # After execution restart Krux (better safe than sorry)
-        from ..power import power_manager
-
-        power_manager.shutdown()
+        kapps = Kapps(self.ctx)
+        return kapps.load_kapp
 
     def flash_tools(self):
         """Handler for the 'Flash Tools' menu item"""
