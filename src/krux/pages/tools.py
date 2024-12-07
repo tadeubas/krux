@@ -67,7 +67,7 @@ class Tools(Page):
         from krux.pages.kapps import Kapps
 
         kapps = Kapps(self.ctx)
-        return kapps.load_kapp
+        return kapps.load_kapp()
 
     def flash_tools(self):
         """Handler for the 'Flash Tools' menu item"""
