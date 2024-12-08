@@ -112,9 +112,13 @@ class Kapps(Page):
 
         if not self._check_signature(sig_data, data_hash):
             return MENU_CONTINUE
-        
-        # Warns user about changing users's space flash internal memory
-        if not self.prompt(t("App needs to be copied to user's "), self.ctx.display.height() // 2):
+
+        # Warns user about changing users's flash internal memory region
+        self.ctx.display.clear()
+        if not self.prompt(
+            t("App will be stored internally on flash.") + "\n\n" + t("Proceed?"),
+            self.ctx.display.height() // 2,
+        ):
             return MENU_CONTINUE
 
         # Delete any .mpy files from flash VFS to avoid malicious code import/execution
