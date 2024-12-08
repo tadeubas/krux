@@ -49,12 +49,12 @@ class Kapps(Page):
 
             if not pubkey.verify(sig, data_hash):
                 self.flash_error(t("Bad signature"))
-                return MENU_CONTINUE
+                return False
         except:
             self.flash_error(t("Bad signature"))
-            return MENU_CONTINUE
+            return False
 
-        return None
+        return True
 
     def load_kapp(self):  # pylint: disable=R1710
         """Prompt user to load and 'execute' a .mpy Krux app"""
@@ -110,7 +110,11 @@ class Kapps(Page):
             self.flash_error(t("Missing signature file"))
             return MENU_CONTINUE
 
-        if self._check_signature(sig_data, data_hash) == MENU_CONTINUE:
+        if not self._check_signature(sig_data, data_hash):
+            return MENU_CONTINUE
+        
+        # Warns user about changing users's space flash internal memory
+        if not self.prompt(t("App needs to be copied to user's "), self.ctx.display.height() // 2):
             return MENU_CONTINUE
 
         # Delete any .mpy files from flash VFS to avoid malicious code import/execution
