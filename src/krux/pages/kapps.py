@@ -72,9 +72,13 @@ class Kapps(Page):
             if file.endswith(MPY_FILE_EXTENSION):
                 # Check if signature file exists for the .mpy file
                 try:
-                    sig_data = open(
-                        flash_path_prefix + file + SIGNATURE_FILE_EXTENSION, "rb"
-                    ).read()
+                    sig_data = None
+                    with open(
+                        flash_path_prefix + file + SIGNATURE_FILE_EXTENSION,
+                        "rb",
+                        buffering=0,
+                    ) as sigfile:
+                        sig_data = sigfile.read()
                     if self._valid_signature(
                         sig_data, sha256(flash_path_prefix + file)
                     ):
@@ -196,9 +200,10 @@ class Kapps(Page):
         # Check signature of .mpy file in SD
         sig_data = None
         try:
-            sig_data = open(
-                sd_path_prefix + filename + SIGNATURE_FILE_EXTENSION, "rb"
-            ).read()
+            with open(
+                sd_path_prefix + filename + SIGNATURE_FILE_EXTENSION, "rb", buffering=0
+            ) as sigfile:
+                sig_data = sigfile.read()
         except:
             self.flash_error(t("Missing signature file"))
             return MENU_CONTINUE
@@ -242,6 +247,7 @@ class Kapps(Page):
             with open(
                 flash_path_prefix + filename + SIGNATURE_FILE_EXTENSION,
                 "wb",
+                buffering=0,
             ) as kapp_sig_file:
                 kapp_sig_file.write(sig_data)
 
