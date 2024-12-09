@@ -37,6 +37,7 @@ from ..sd_card import SDHandler
 from ..display import BOTTOM_PROMPT_LINE
 from ..krux_settings import t
 from ..qr import FORMAT_NONE
+import sys
 
 
 class Tools(Page):
@@ -64,10 +65,22 @@ class Tools(Page):
     def load_krux_app(self):
         """Handler for the 'Load Krux app' menu item"""
 
+        # Check if Krux app is enabled
+        from krux.krux_settings import Settings
+
+        if not Settings().security.allow_kapp:
+            self.flash_error(t("Allow in settings first!"))
+            return MENU_CONTINUE
+
         from krux.pages.kapps import Kapps
 
-        kapps = Kapps(self.ctx)
-        return kapps.load_kapp()
+        Kapps(self.ctx).run()
+
+        # Unimport kapps
+        sys.modules.pop("krux.pages.kapps")
+        del sys.modules["krux.pages"].kapps
+
+        return MENU_CONTINUE
 
     def flash_tools(self):
         """Handler for the 'Flash Tools' menu item"""
