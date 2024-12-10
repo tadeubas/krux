@@ -110,20 +110,13 @@ class Kapps(Page):
 
         from embit import ec
         from ..metadata import SIGNER_PUBKEY
+        from krux.firmware import get_pubkey, check_signature
 
-        pubkey = None
-        try:
-            pubkey = ec.PublicKey.from_string(SIGNER_PUBKEY)
-        except:
+        pubkey = get_pubkey()
+        if pubkey is None:
             raise ValueError("Invalid public key")
 
-        try:
-            # Parse, serialize, and reparse to ensure signature is compact prior to verification
-            sig = ec.Signature.parse(ec.Signature.parse(sig).serialize())
-
-            if not pubkey.verify(sig, data_hash):
-                return False
-        except:
+        if not check_signature(pubkey, sig, data_hash):
             return False
 
         return True
