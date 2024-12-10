@@ -230,38 +230,37 @@ class Login(Page):
                 return self._load_key_from_words(entropy_mnemonic.split(), new=True)
         return MENU_CONTINUE
 
-    def _load_key_from_words(self, words, charset=LETTERS, new=False):
-        mnemonic = " ".join(words)
+    def _confirm_mnemonic_numbers(self, mnemonic, charset):
+        from .utils import Utils
 
-        if charset != LETTERS:
-            from .utils import Utils
+        charset_type = {
+            DIGITS: Utils.BASE_DEC,
+            DIGITS_HEX: Utils.BASE_HEX,
+            DIGITS_OCT: Utils.BASE_OCT,
+        }
+        suffix_dict = {
+            DIGITS: Utils.BASE_DEC_SUFFIX,
+            DIGITS_HEX: Utils.BASE_HEX_SUFFIX,
+            DIGITS_OCT: Utils.BASE_OCT_SUFFIX,
+        }
+        numbers_str = Utils.get_mnemonic_numbers(mnemonic, charset_type[charset])
+        self.display_mnemonic(numbers_str, suffix_dict[charset])
+        if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
+            return False
 
-            charset_type = {
-                DIGITS: Utils.BASE_DEC,
-                DIGITS_HEX: Utils.BASE_HEX,
-                DIGITS_OCT: Utils.BASE_OCT,
-            }
-            suffix_dict = {
-                DIGITS: Utils.BASE_DEC_SUFFIX,
-                DIGITS_HEX: Utils.BASE_HEX_SUFFIX,
-                DIGITS_OCT: Utils.BASE_OCT_SUFFIX,
-            }
-            numbers_str = Utils.get_mnemonic_numbers(mnemonic, charset_type[charset])
-            self.display_mnemonic(numbers_str, suffix_dict[charset])
-            if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
-                return MENU_CONTINUE
-            self.ctx.display.clear()
-
+        return True
+    
+    def _confirm_mnemonic_letters(self, mnemonic, new):
         from .mnemonic_editor import MnemonicEditor
 
         # If the mnemonic is not hidden, show the mnemonic editor
         if not Settings().security.hide_mnemonic:
             mnemonic_editor = MnemonicEditor(self.ctx, mnemonic, new)
             mnemonic = mnemonic_editor.edit()
-        if mnemonic is None:
-            return MENU_CONTINUE
-        self.ctx.display.clear()
 
+        return mnemonic
+
+    def _confirm_wallet_key(self, mnemonic):
         passphrase = ""
         multisig = Settings().wallet.multisig
         network = NETWORKS[Settings().wallet.network]
@@ -270,7 +269,6 @@ class Login(Page):
             script_type = P2WSH
         else:
             script_type = SCRIPT_LONG_NAMES.get(Settings().wallet.script_type)
-        from ..wallet import Wallet
 
         while True:
             key = Key(mnemonic, multisig, network, passphrase, account, script_type)
@@ -304,7 +302,7 @@ class Login(Page):
             if index == len(submenu.menu) - 1:
                 if self.prompt(t("Are you sure?"), self.ctx.display.height() // 2):
                     del key
-                    return MENU_CONTINUE
+                    return None
             if index == 0:
                 break
             if index == 1:
@@ -321,9 +319,29 @@ class Login(Page):
                 network, multisig, script_type, account = (
                     wallet_settings.customize_wallet(key)
                 )
+        
+        return key
 
+    def _load_key_from_words(self, words, charset=LETTERS, new=False):
+        mnemonic = " ".join(words)
+
+        if charset != LETTERS:
+            if not self._confirm_mnemonic_numbers(mnemonic, charset):
+                return MENU_CONTINUE
+            self.ctx.display.clear()
+
+        mnemonic = self._confirm_mnemonic_letters(mnemonic, new)
+        if mnemonic is None:
+            return MENU_CONTINUE
+        self.ctx.display.clear()
+
+        key = self._confirm_wallet_key(mnemonic)
+        if key is None:
+            return MENU_CONTINUE
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(t("Loading.."))
+
+        from ..wallet import Wallet
 
         self.ctx.wallet = Wallet(key)
         return MENU_EXIT
