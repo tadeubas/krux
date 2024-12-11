@@ -220,8 +220,9 @@ class Kapps(Page):
                 return MENU_CONTINUE
 
             # Save APP .mpy
+            filename_flash = filename.split("/")[-1]
             with open(
-                flash_path_prefix + filename,
+                flash_path_prefix + filename_flash,
                 "wb",
                 buffering=0,
             ) as flash_file:
@@ -234,7 +235,7 @@ class Kapps(Page):
 
             # Save SIG .mpy.sig
             with open(
-                flash_path_prefix + filename + SIGNATURE_FILE_EXTENSION,
+                flash_path_prefix + filename_flash + SIGNATURE_FILE_EXTENSION,
                 "wb",
                 buffering=0,
             ) as kapp_sig_file:
@@ -245,5 +246,5 @@ class Kapps(Page):
 
         gc.collect()
 
-        clean_name = filename[:-4]
+        clean_name = filename_flash[:-4]
         return self.execute_flash_kapp(clean_name)
