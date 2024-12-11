@@ -41,7 +41,7 @@ class Kapps(Page):
         self.ctx = ctx
 
         items = []
-        signed_apps = self._parse_all_flash_apps()
+        signed_apps = self.parse_all_flash_apps()
         for app_name in signed_apps:
             clean_name = app_name[:-4]
             items += [
@@ -59,7 +59,7 @@ class Kapps(Page):
             Menu(ctx, items),
         )
 
-    def _parse_all_flash_apps(self):
+    def parse_all_flash_apps(self):
         """Check if any .mpy app present in flash is signed.
         If not, ask for deletion to prevent importing and executing malicious code"""
 
@@ -79,9 +79,7 @@ class Kapps(Page):
                         buffering=0,
                     ) as sigfile:
                         sig_data = sigfile.read()
-                    if self._valid_signature(
-                        sig_data, sha256(flash_path_prefix + file)
-                    ):
+                    if self.valid_signature(sig_data, sha256(flash_path_prefix + file)):
                         signed_apps += [file]
                     else:
                         unsigned_apps += [file]
@@ -105,11 +103,9 @@ class Kapps(Page):
 
         return signed_apps
 
-    def _valid_signature(self, sig, data_hash):
+    def valid_signature(self, sig, data_hash):
         """Return if signature of data_hash is valid"""
 
-        from embit import ec
-        from ..metadata import SIGNER_PUBKEY
         from krux.firmware import get_pubkey, check_signature
 
         pubkey = get_pubkey()
@@ -201,7 +197,7 @@ class Kapps(Page):
             self.flash_error(t("Missing signature file"))
             return MENU_CONTINUE
 
-        if not self._valid_signature(sig_data, data_hash):
+        if not self.valid_signature(sig_data, data_hash):
             self.flash_error(t("Bad signature"))
             return MENU_CONTINUE
 
