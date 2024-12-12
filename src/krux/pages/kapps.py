@@ -117,7 +117,7 @@ class Kapps(Page):
 
         return True
 
-    def execute_flash_kapp(self, app_name):  # pylint: disable=R1710
+    def execute_flash_kapp(self, app_name):
         """Prompt user to load and 'execute' a .mpy Krux app"""
 
         self.ctx.display.clear()
@@ -144,7 +144,8 @@ class Kapps(Page):
             self.ctx.display.to_portrait()
             self.ctx.display.clear()
             self.ctx.display.draw_centered_text(
-                t("Error:") + "\n" +"Could not execute %s" % app_name, theme.error_color
+                t("Error:") + "\n" + "Could not execute %s" % app_name,
+                theme.error_color,
             )
             self.ctx.input.wait_for_button()
 
@@ -156,12 +157,8 @@ class Kapps(Page):
 
         power_manager.shutdown()
 
-    def load_sd_kapp(self):  # pylint: disable=R1710
+    def load_sd_kapp(self):
         """Loads kapp from SD to flash, then executes"""
-
-        if not self.has_sd_card():
-            self.flash_error(t("SD card not detected."))
-            return MENU_CONTINUE
 
         # Prompt user for .mpy file
         from krux.pages.utils import Utils

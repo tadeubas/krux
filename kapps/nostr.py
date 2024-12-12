@@ -27,20 +27,29 @@ os.chdir("/")
 VERSION = "0.1"
 NAME = "Nostr app"
 
-from krux.pages import Menu, MENU_CONTINUE, MENU_EXIT
-from krux.pages.login import Login
+from krux.pages import Menu, MENU_CONTINUE, MENU_EXIT, LETTERS
+from krux.pages.login import Login, DIGITS_HEX, DIGITS
 from krux.pages.home_pages.home import Home
 from krux.krux_settings import t, Settings
-from krux.display import NARROW_SCREEN_WITH, STATUS_BAR_HEIGHT, FONT_HEIGHT
+from krux.display import (
+    NARROW_SCREEN_WITH,
+    STATUS_BAR_HEIGHT,
+    FONT_HEIGHT,
+    BOTTOM_PROMPT_LINE,
+)
 from krux.themes import theme
 
 
-NSEC = "nsec"
-PRIV_HEX = "priv_hex"
-NPUB = "npub"
-PUB_HEX = "pub_hex"
+NSEC_SIZE = 63
+HEX_SIZE = 64
 
-FILE_SUFFIX = "-key"
+NSEC = "nsec"
+PRIV_HEX = "priv-hex"
+NPUB = "npub"
+PUB_HEX = "pub-hex"
+HEX = "hex"
+
+FILE_SUFFIX = "-nostr"
 FILE_EXTENSION = ".txt"
 
 
@@ -102,9 +111,25 @@ class Klogin(Login):
         submenu = Menu(
             self.ctx,
             [
-                (t("Via Camera"), self._load_nostr_priv_cam),
-                (t("Via Manual Input"), self._load_nostr_priv_manual),
-                (t("From Storage"), self._load_nostr_priv_storage),
+                (t("QR Code"), self._load_nostr_priv_cam),
+                (t("Via Manual Input"), self._pre_load_nostr_priv_manual),
+                (
+                    t("Load from SD card"),
+                    None if not self.has_sd_card() else self._load_nostr_priv_sd,
+                ),
+            ],
+        )
+        index, status = submenu.run_loop()
+        if index == len(submenu.menu) - 1:
+            return MENU_CONTINUE
+        return status
+
+    def _pre_load_nostr_priv_manual(self):
+        submenu = Menu(
+            self.ctx,
+            [
+                (NSEC, lambda ver=NSEC: self._load_nostr_priv_manual(ver)),
+                (HEX, lambda ver=HEX: self._load_nostr_priv_manual(ver)),
             ],
         )
         index, status = submenu.run_loop()
@@ -113,16 +138,108 @@ class Klogin(Login):
         return status
 
     def _load_nostr_priv_cam(self):
-        print("Todo load_nsec QR / manual input")
-        return MENU_CONTINUE
+        from krux.pages.qr_capture import QRCodeCapture
 
-    def _load_nostr_priv_manual(self):
-        print("TODO load_nostr_priv_manual")
-        return MENU_CONTINUE
+        qr_capture = QRCodeCapture(self.ctx)
+        data, _ = qr_capture.qr_capture_loop()
+        if data is None:
+            self.flash_error(t("Failed to load"))
+            return MENU_CONTINUE
 
-    def _load_nostr_priv_storage(self):
-        print("TODO load_nost_priv_storage")
-        return MENU_CONTINUE
+        try:
+            data_str = data.decode() if not isinstance(data, str) else data
+            mnemonic = self._create_mnemonic_from_nostr_priv_key(data_str)
+            if len(mnemonic.split(" ")) != 24:
+                raise ValueError("Mnemonic must have 24 words")
+        except:
+            self.flash_error(t("Failed to load"))
+            return MENU_CONTINUE
+
+        from krux.wallet import Wallet
+
+        self.ctx.wallet = Wallet(self._confirm_wallet_key(mnemonic))
+
+        return MENU_EXIT
+
+    def _load_nostr_priv_manual(self, version):
+        title = t("Private Key")
+
+        data = ""
+        if version == NSEC:
+            data = self.capture_from_keypad(
+                title, [LETTERS, DIGITS], starting_buffer=NSEC
+            )
+        else:
+            data = self.capture_from_keypad(title, [DIGITS_HEX])
+
+        data = str(data)
+        if len(data) > HEX_SIZE:
+            raise ValueError("Maximum length exceeded (%s)" % HEX_SIZE)
+        if version == NSEC and len(data) > NSEC_SIZE:
+            raise ValueError("Maximum length exceeded (%s)" % NSEC_SIZE)
+
+        self.ctx.display.clear()
+        self.ctx.display.draw_hcentered_text(t("Private Key") + ":\n\n" + data)
+        if not self.prompt(
+            t("Proceed?"),
+            BOTTOM_PROMPT_LINE,
+        ):
+            return MENU_CONTINUE
+
+        try:
+            mnemonic = self._create_mnemonic_from_nostr_priv_key(data)
+            if len(mnemonic.split(" ")) != 24:
+                raise ValueError("Mnemonic must have 24 words")
+        except:
+            self.flash_error(t("Failed to load"))
+            return MENU_CONTINUE
+
+        from krux.wallet import Wallet
+
+        self.ctx.wallet = Wallet(self._confirm_wallet_key(mnemonic))
+
+        return MENU_EXIT
+
+    def _load_nostr_priv_sd(self):
+        from krux.pages.utils import Utils
+
+        # Prompt user for file
+        filename, _ = Utils(self.ctx).load_file(prompt=False, only_get_filename=True)
+
+        if not filename:
+            return MENU_CONTINUE
+
+        from krux.sd_card import SDHandler
+
+        data = None
+        mnemonic = ""
+        try:
+            with SDHandler() as sd:
+                data = sd.read(filename)
+
+            data = data.replace("\r\n", "").replace("\n", "")
+            mnemonic = self._create_mnemonic_from_nostr_priv_key(data)
+        except:
+            self.flash_error(t("Failed to load"))
+            return MENU_CONTINUE
+
+        from krux.wallet import Wallet
+
+        self.ctx.wallet = Wallet(self._confirm_wallet_key(mnemonic))
+
+        return MENU_EXIT
+
+    def _create_mnemonic_from_nostr_priv_key(self, data):
+        from embit import bech32, bip39
+
+        if data.startswith(NSEC) and len(data) == NSEC_SIZE:
+            _, _, data = bech32.bech32_decode(data)
+            decoded = bech32.convertbits(data, 5, 8, False)
+            return bip39.mnemonic_from_bytes(bytes(decoded))
+        if len(data) == HEX_SIZE:
+            return bip39.mnemonic_from_bytes(bytes.fromhex(data))
+
+        return ""
 
     def about(self):
         """Handler for the 'about' menu item"""
@@ -244,7 +361,7 @@ class Khome(Home):
 
         pub_key_menu_items = []
         for version in versions:
-            title = version if version not in (PRIV_HEX, PUB_HEX) else "hex"
+            title = version if version not in (PRIV_HEX, PUB_HEX) else HEX
             pub_key_menu_items.append(
                 (title + " - " + t("Text"), lambda ver=version: _nostr_key_text(ver))
             )
