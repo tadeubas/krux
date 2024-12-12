@@ -139,13 +139,14 @@ class Kapps(Page):
             # avoids importing from flash VSF
             os.chdir("/")
 
-            # unimport module
-            import sys
+            from krux.themes import theme
 
-            del i_kapp
-            del sys.modules[app_name]
-
-            raise ValueError("Could not execute %s" % app_name)
+            self.ctx.display.to_portrait()
+            self.ctx.display.clear()
+            self.ctx.display.draw_centered_text(
+                t("Error:") + "\n" +"Could not execute %s" % app_name, theme.error_color
+            )
+            self.ctx.input.wait_for_button()
 
         # avoids importing from flash VSF
         os.chdir("/")
