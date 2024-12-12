@@ -287,7 +287,6 @@ class Login(Page):
             script_type = SCRIPT_LONG_NAMES.get(Settings().wallet.script_type)
         else:
             script_type = P2WSH
-        from ..wallet import Wallet
 
         while True:
             key = Key(mnemonic, policy_type, network, passphrase, account, script_type)

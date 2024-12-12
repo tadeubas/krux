@@ -220,7 +220,7 @@ class Kapps(Page):
                 return MENU_CONTINUE
 
             # Save APP .mpy
-            filename_flash = filename.split("/")[-1]
+            filename_flash = filename.rsplit("/", maxsplit=1)[-1]
             with open(
                 flash_path_prefix + filename_flash,
                 "wb",

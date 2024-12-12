@@ -43,6 +43,7 @@ PUB_HEX = "pub_hex"
 FILE_SUFFIX = "-key"
 FILE_EXTENSION = ".txt"
 
+
 class KMenu(Menu):
     """Customizes the page's menu"""
 
@@ -74,17 +75,17 @@ class Klogin(Login):
     def __init__(self, ctx):
         super().__init__(ctx)
         self.menu = KMenu(
-                ctx,
-                [
-                    (t("Load Mnemonic"), self.load_key),
-                    (t("New Mnemonic"), self.new_key),
-                    (t("Load nsec or hex"), self.load_nsec),
-                    (t("About"), self.about),
-                    self.shutdown_menu_item(ctx),
-                ],
-                back_label=None,
-            )
-        
+            ctx,
+            [
+                (t("Load Mnemonic"), self.load_key),
+                (t("New Mnemonic"), self.new_key),
+                (t("Load nsec or hex"), self.load_nsec),
+                (t("About"), self.about),
+                self.shutdown_menu_item(ctx),
+            ],
+            back_label=None,
+        )
+
     # Follow NIP-06 ?
     # Basic key derivation from mnemonic seed phrase
     # https://github.com/nostr-protocol/nips/blob/master/06.md
@@ -94,29 +95,34 @@ class Klogin(Login):
         from krux.settings import MAIN_TXT
 
         return Key(mnemonic, False, NETWORKS[MAIN_TXT])
-        
+
     def load_nsec(self):
+        """Load nsec or hex menu item"""
+
         submenu = Menu(
             self.ctx,
             [
-                (t("Via Camera"), self.load_nostr_priv_cam),
-                (t("Via Manual Input"), self.load_nostr_priv_manual),
-                (t("From Storage"), self.load_nostr_priv_storage),
+                (t("Via Camera"), self._load_nostr_priv_cam),
+                (t("Via Manual Input"), self._load_nostr_priv_manual),
+                (t("From Storage"), self._load_nostr_priv_storage),
             ],
         )
         index, status = submenu.run_loop()
         if index == len(submenu.menu) - 1:
             return MENU_CONTINUE
         return status
-    
-    def load_nostr_priv_cam(self):
+
+    def _load_nostr_priv_cam(self):
         print("Todo load_nsec QR / manual input")
+        return MENU_CONTINUE
 
-    def load_nostr_priv_manual(self):
+    def _load_nostr_priv_manual(self):
         print("TODO load_nostr_priv_manual")
+        return MENU_CONTINUE
 
-    def load_nostr_priv_storage(self):
+    def _load_nostr_priv_storage(self):
         print("TODO load_nost_priv_storage")
+        return MENU_CONTINUE
 
     def about(self):
         """Handler for the 'about' menu item"""
@@ -134,38 +140,36 @@ class Khome(Home):
 
     def __init__(self, ctx):
         super().__init__(ctx)
-        
+
         self.menu = Menu(
-                ctx,
-                [
+            ctx,
+            [
+                (
+                    t("Backup Mnemonic"),
                     (
-                        t("Backup Mnemonic"),
-                        (
-                            self.backup_mnemonic
-                            if not Settings().security.hide_mnemonic
-                            else None
-                        ),
+                        self.backup_mnemonic
+                        if not Settings().security.hide_mnemonic
+                        else None
                     ),
-                    (t("Nostr Keys"), self.nostr_keys),
-                    ("BIP85", self.bip85),
-                    (t("Sign Event"), self.sign_message),
-                    self.shutdown_menu_item(ctx),
-                ],
-                back_label=None,
-            )
-        
+                ),
+                (t("Nostr Keys"), self.nostr_keys),
+                ("BIP85", self.bip85),
+                (t("Sign Event"), self.sign_message),
+                self.shutdown_menu_item(ctx),
+            ],
+            back_label=None,
+        )
+
     def nostr_keys(self):
         """Handler for Nostr Keys menu item"""
 
         if len(self.ctx.wallet.key.mnemonic.split(" ")) < 24:
             self.flash_error(t("Mnemonic must have 24 words!"))
             return MENU_CONTINUE
-        else:
-            try:
-                self._get_private_key()
-            except:
-                raise ValueError("This mnemonic cannot be converted, try another")
-
+        try:
+            self._get_private_key()
+        except:
+            raise ValueError("This mnemonic cannot be converted, try another")
 
         submenu = Menu(
             self.ctx,
@@ -173,9 +177,10 @@ class Khome(Home):
                 (
                     t("Private Key"),
                     (
-                        None if Settings().security.hide_mnemonic
+                        None
+                        if Settings().security.hide_mnemonic
                         else lambda: self.show_key_formats([NSEC, PRIV_HEX])
-                    )
+                    ),
                 ),
                 (t("Public Key"), lambda: self.show_key_formats([NPUB, PUB_HEX])),
             ],
@@ -186,6 +191,8 @@ class Khome(Home):
         return status
 
     def show_key_formats(self, versions):
+        """Create menu to select Nostr keys in text or QR"""
+
         def _nostr_key_text(version):
             def _save_nostr_to_sd(version):
                 from krux.pages.file_operations import SaveFile
@@ -211,7 +218,11 @@ class Khome(Home):
                     ),
                 ),
             ]
-            full_nostr_key = self._get_nostr_title(version) + ":\n\n" + str(self._get_nostr_key(version))
+            full_nostr_key = (
+                self._get_nostr_title(version)
+                + ":\n\n"
+                + str(self._get_nostr_key(version))
+            )
             menu_offset = 5 + len(self.ctx.display.to_lines(full_nostr_key))
             menu_offset *= FONT_HEIGHT
             nostr_key_menu = Menu(self.ctx, nostr_text_menu_items, offset=menu_offset)
@@ -222,7 +233,7 @@ class Khome(Home):
                 info_box=True,
             )
             nostr_key_menu.run_loop()
-    
+
         def _nostr_key_qr(version):
             title = self._get_nostr_title(version)
             nostr_key = str(self._get_nostr_key(version))
@@ -248,16 +259,15 @@ class Khome(Home):
 
         return MENU_CONTINUE
 
-
     def _get_nostr_title(self, version):
         if version == NPUB:
             return "Public Key npub"
-        elif version == PUB_HEX:
+        if version == PUB_HEX:
             return "Public Key hex"
-        elif version == NSEC:
+        if version == NSEC:
             return "Private Key nsec"
         return "Private Key hex"
-    
+
     def _get_nostr_key(self, version):
 
         def _encode_nostr_key(bits, version):
@@ -271,21 +281,21 @@ class Khome(Home):
             if version == NPUB:
                 return _encode_nostr_key(pub_key, version)
             return pub_key.hex()
-        else:
-            if version == NSEC:
-                return _encode_nostr_key(self._get_mnemonic_bytes(), version)
-            return self._get_mnemonic_bytes().hex()
+        if version == NSEC:
+            return _encode_nostr_key(self._get_mnemonic_bytes(), version)
+        return self._get_mnemonic_bytes().hex()
 
     def _get_mnemonic_bytes(self):
         from embit import bip39
 
         mnemonic = self.ctx.wallet.key.mnemonic
         return bip39.mnemonic_to_bytes(mnemonic, ignore_checksum=True)
-    
+
     def _get_private_key(self):
         from embit import ec
 
         return ec.PrivateKey(self._get_mnemonic_bytes())
+
 
 def run(ctx):
     """Runs this kapp"""
