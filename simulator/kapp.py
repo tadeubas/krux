@@ -60,9 +60,6 @@ class KMenu(Menu):
 class Kapp(Page):
     """Represents the page of the kapp"""
 
-    # Used on boot.py when changing the locale on Settings
-    SETTINGS_MENU_INDEX = 2
-
     def __init__(self, ctx):
         shtn_reboot_label = (
             t("Shutdown") if ctx.power_manager.has_battery() else t("Reboot")
