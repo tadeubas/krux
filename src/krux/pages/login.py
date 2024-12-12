@@ -257,7 +257,7 @@ class Login(Page):
             return False
 
         return True
-    
+
     def _confirm_mnemonic_letters(self, mnemonic, new):
         from .mnemonic_editor import MnemonicEditor
 
@@ -341,7 +341,7 @@ class Login(Page):
                 network, policy_type, script_type, account = (
                     wallet_settings.customize_wallet(key)
                 )
-        
+
         return key
 
     def _load_key_from_words(self, words, charset=LETTERS, new=False):
