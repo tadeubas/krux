@@ -156,6 +156,7 @@ class Kapps(Page):
         from ..power import power_manager
 
         power_manager.shutdown()
+        return None
 
     def load_sd_kapp(self):
         """Loads kapp from SD to flash, then executes"""
