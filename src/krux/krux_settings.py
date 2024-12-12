@@ -431,7 +431,7 @@ class SecuritySettings(SettingsNamespace):
             "auto_shutdown": t("Shutdown Time"),
             "hide_mnemonic": t("Hide Mnemonics"),
             "boot_flash_hash": t("TC Flash Hash at Boot"),
-            "allow_kapp": t("Enable Krux apps"),
+            "allow_kapp": t("Allow Krux apps"),
         }[attr]
 
 
