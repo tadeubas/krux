@@ -31,6 +31,7 @@ from .metadata import SIGNER_PUBKEY
 from .display import display
 from .krux_settings import t
 from .wdt import wdt
+from .themes import theme
 
 FLASH_SIZE = 2**24
 MAX_FIRMWARE_SIZE = 0x300000
@@ -240,23 +241,26 @@ def upgrade():
         return False
 
     if new_size > MAX_FIRMWARE_SIZE:
-        display.flash_text("Firmware exceeds max size: %d" % MAX_FIRMWARE_SIZE)
+        display.flash_text(
+            "Firmware exceeds max size: %d" % MAX_FIRMWARE_SIZE, theme.error_color
+        )
         return False
 
     pubkey = get_pubkey()
     if pubkey is None:
-        display.flash_text("Invalid public key")
+        display.flash_text("Invalid public key", theme.error_color)
         return False
 
     sig = None
     try:
-        sig = open(firmware_path + ".sig", "rb").read()
+        with open(firmware_path + ".sig", "rb") as sig_file:
+            sig = sig_file.read()
     except:
-        display.flash_text(t("Missing signature file"))
+        display.flash_text(t("Missing signature file"), theme.error_color)
         return False
 
     if not check_signature(pubkey, sig, firmware_hash):
-        display.flash_text(t("Bad signature"))
+        display.flash_text(t("Bad signature"), theme.error_color)
         return False
 
     boot_config_sector = flash.read(MAIN_BOOT_CONFIG_SECTOR_ADDRESS, 4096)
@@ -265,24 +269,25 @@ def upgrade():
         boot_config_sector = flash.read(BACKUP_BOOT_CONFIG_SECTOR_ADDRESS, 4096)
         address, _, entry_index = find_active_firmware(boot_config_sector)
         if address is None:
-            display.flash_text("Invalid bootloader")
+            display.flash_text("Invalid bootloader", theme.error_color)
             return False
 
     # Write new firmware to the opposite slot
     new_address = FIRMWARE_SLOT_2 if address == FIRMWARE_SLOT_1 else FIRMWARE_SLOT_1
 
     try:
-        write_data(
-            lambda pct: status_text(
-                t("Processing..") + "1/3" + "\n\n%d%%" % int(pct * 100)
-            ),
-            new_address,
-            open(firmware_path, "rb", buffering=0),
-            new_size,
-            65536,
-            True,
-            firmware_with_header_hash,
-        )
+        with open(firmware_path, "rb", buffering=0) as firmware_file:
+            write_data(
+                lambda pct: status_text(
+                    t("Processing..") + "1/3" + "\n\n%d%%" % int(pct * 100)
+                ),
+                new_address,
+                firmware_file,
+                new_size,
+                65536,
+                True,
+                firmware_with_header_hash,
+            )
 
         write_data(
             lambda pct: status_text(
@@ -307,7 +312,7 @@ def upgrade():
             4096,
         )
     except:
-        display.flash_text("Error read/write data")
+        display.flash_text("Error read/write data", theme.error_color)
         return False
 
     status_text(

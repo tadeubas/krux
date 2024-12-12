@@ -33,6 +33,9 @@ from .key import (
     P2TR,
     SINGLESIG_SCRIPT_PURPOSE,
     MULTISIG_SCRIPT_PURPOSE,
+    TYPE_SINGLESIG,
+    TYPE_MULTISIG,
+    TYPE_MINISCRIPT,
 )
 
 
@@ -52,7 +55,7 @@ class Wallet:
         self.policy = None
         self.persisted = False
         self._network = None
-        if self.key and not self.key.multisig:
+        if self.key and self.key.policy_type == TYPE_SINGLESIG:
             if self.key.script_type == P2PKH:
                 self.descriptor = Descriptor.from_string(
                     "pkh(%s/<0;1>/*)" % self.key.key_expression()
@@ -93,10 +96,20 @@ class Wallet:
     def is_multisig(self):
         """Returns a boolean indicating whether or not the wallet is multisig"""
         if self.key:
-            return self.key.multisig
+            return self.key.policy_type == TYPE_MULTISIG
         if self.descriptor:
             return self.descriptor.is_basic_multisig
-        return None
+        return False
+
+    def is_miniscript(self):
+        """Returns a boolean indicating whether or not the wallet is miniscript"""
+        if self.key:
+            return self.key.policy_type == TYPE_MINISCRIPT
+        if self.descriptor:
+            if self.descriptor.is_basic_multisig:
+                return False
+            return self.descriptor.miniscript is not None
+        return False
 
     def is_loaded(self):
         """Returns a boolean indicating whether or not this wallet has been loaded"""
@@ -106,19 +119,30 @@ class Wallet:
         """Loads the wallet from the given data"""
         descriptor, label = parse_wallet(wallet_data, allow_assumption)
 
+        # convert descriptor keys to 'xpub' on same network -- for comparison only
+        descriptor_xpubs = []
+        for key in descriptor.keys:
+            network, _ = version_to_network_versiontype(key.key.version)
+            descriptor_xpubs.append(
+                key.key.to_base58(version=NETWORKS[network]["xpub"])
+            )
+
         if self.key:
             if self.is_multisig():
                 if not descriptor.is_basic_multisig:
                     raise ValueError("not multisig")
-                if self.key.xpub() not in [
-                    key.key.to_base58() for key in descriptor.keys
-                ]:
-                    raise ValueError("xpub not a cosigner")
+                if self.key.xpub() not in descriptor_xpubs:
+                    raise ValueError("xpub not a multisig cosigner")
+            elif self.is_miniscript():
+                if descriptor.miniscript is None or descriptor.is_basic_multisig:
+                    raise ValueError("not miniscript")
+                if self.key.xpub() not in descriptor_xpubs:
+                    raise ValueError("xpub not a miniscript cosigner")
             else:
                 if not descriptor.key:
                     if len(descriptor.keys) > 1:
                         raise ValueError("not single-sig")
-                if self.key.xpub() != descriptor.key.key.to_base58():
+                if self.key.xpub() != descriptor_xpubs[0]:
                     raise ValueError("xpub does not match")
 
         self.wallet_data = wallet_data
@@ -130,7 +154,7 @@ class Wallet:
             if not self.label:
                 self.label = t("Single-sig")
             self.policy = {"type": self.descriptor.scriptpubkey_type()}
-        else:
+        elif self.descriptor.is_basic_multisig:
             m = int(str(self.descriptor.miniscript.args[0]))
             n = len(self.descriptor.keys)
             cosigners = [key.key.to_base58() for key in self.descriptor.keys]
@@ -142,6 +166,15 @@ class Wallet:
                 "type": self.descriptor.scriptpubkey_type(),
                 "m": m,
                 "n": n,
+                "cosigners": cosigners,
+            }
+        elif self.descriptor.miniscript is not None:
+            if not self.label:
+                self.label = t("Miniscript")
+            cosigners = [key.key.to_base58() for key in self.descriptor.keys]
+            cosigners = sorted(cosigners)
+            self.policy = {
+                "type": self.descriptor.scriptpubkey_type(),
                 "cosigners": cosigners,
             }
 
@@ -186,6 +219,62 @@ def to_unambiguous_descriptor(descriptor):
                 if key.allowed_derivation is None:
                     key.allowed_derivation = AllowedDerivation.default()
     return descriptor
+
+
+def parse_key_value_file(wallet_data):
+    """Tries to parse data as a key-value file"""
+    key_vals = []
+    for word in wallet_data.split(":"):
+        for key_val in word.split("\n"):
+            key_val = key_val.strip()
+            if key_val != "":
+                key_vals.append(key_val)
+
+    keys_present = [key in key_vals for key in ["Format", "Policy", "Derivation"]]
+    if any(keys_present):
+        if not all(keys_present):
+            raise KeyError(
+                '"Format", "Policy", and "Derivation" keys not found in INI file'
+            )
+
+        script = key_vals[key_vals.index("Format") + 1].lower()
+        if script != P2WSH:
+            raise ValueError("invalid script type: %s" % script)
+
+        policy = key_vals[key_vals.index("Policy") + 1]
+        m = int(policy[: policy.index("of")].strip())
+        n = int(policy[policy.index("of") + 2 :].strip())
+
+        keys = []
+        for i in range(len(key_vals)):
+            kv = key_vals[i]
+            kv_prefix = kv[:4].lower()
+            if kv_prefix[1:] == "pub" and kv_prefix[0] in ["x", "z", "t", "v"]:
+                xpub = Key.from_string(kv).key.to_base58()
+                fingerprint = key_vals[i - 1]
+                keys.append((xpub, fingerprint))
+
+        if len(keys) != n:
+            raise ValueError("expected %d keys, found %d" % (n, len(keys)))
+
+        derivation = key_vals[key_vals.index("Derivation") + 1]
+
+        keys.sort()
+        keys = ["[%s/%s]%s" % (key[1], derivation[2:], key[0]) for key in keys]
+        if len(keys) > 1:
+            descriptor = Descriptor.from_string(
+                ("wsh(sortedmulti(%d," % m) + ",".join(keys) + "))"
+            )
+        else:
+            # Single-sig - assuming Native Segwit
+            descriptor = Descriptor.from_string("wpkh(%s/<0;1>/*)" % keys[0])
+        label = (
+            key_vals[key_vals.index("Name") + 1]
+            if key_vals.index("Name") >= 0
+            else None
+        )
+        return descriptor, label
+    return None, None
 
 
 def parse_wallet(wallet_data, allow_assumption=None):
@@ -244,54 +333,8 @@ def parse_wallet(wallet_data, allow_assumption=None):
 
     # Try to parse as a key-value file
     try:
-        key_vals = []
-        for word in wallet_data.split(":"):
-            for key_val in word.split("\n"):
-                key_val = key_val.strip()
-                if key_val != "":
-                    key_vals.append(key_val)
-
-        keys_present = [key in key_vals for key in ["Format", "Policy", "Derivation"]]
-        if any(keys_present):
-            if not all(keys_present):
-                raise KeyError(
-                    '"Format", "Policy", and "Derivation" keys not found in INI file'
-                )
-
-            script = key_vals[key_vals.index("Format") + 1].lower()
-            if script != P2WSH:
-                raise ValueError("invalid script type: %s" % script)
-
-            policy = key_vals[key_vals.index("Policy") + 1]
-            m = int(policy[: policy.index("of")].strip())
-            n = int(policy[policy.index("of") + 2 :].strip())
-
-            keys = []
-            for i in range(len(key_vals)):
-                xpub = key_vals[i]
-                if xpub.lower().startswith("xpub") or xpub.lower().startswith("tpub"):
-                    fingerprint = key_vals[i - 1]
-                    keys.append((xpub, fingerprint))
-
-            if len(keys) != n:
-                raise ValueError("expected %d keys, found %d" % (n, len(keys)))
-
-            derivation = key_vals[key_vals.index("Derivation") + 1]
-
-            keys.sort()
-            keys = ["[%s/%s]%s" % (key[1], derivation[2:], key[0]) for key in keys]
-            if len(keys) > 1:
-                descriptor = Descriptor.from_string(
-                    ("wsh(sortedmulti(%d," % m) + ",".join(keys) + "))"
-                )
-            else:
-                # Single-sig - assuming Native Segwit
-                descriptor = Descriptor.from_string("wpkh(%s/<0;1>/*)" % keys[0])
-            label = (
-                key_vals[key_vals.index("Name") + 1]
-                if key_vals.index("Name") >= 0
-                else None
-            )
+        descriptor, label = parse_key_value_file(wallet_data)
+        if descriptor and label:
             return descriptor, label
     except:
         raise ValueError("invalid wallet format")
@@ -306,7 +349,7 @@ def parse_wallet(wallet_data, allow_assumption=None):
         if pubkey.is_extended:
             network, versiontype = version_to_network_versiontype(pubkey.key.version)
 
-            xpub = pubkey.key.to_base58(version=NETWORKS[network]["xpub"])
+            xpub = pubkey.key.to_base58()
 
             fmt = None
             if pubkey.origin is None:

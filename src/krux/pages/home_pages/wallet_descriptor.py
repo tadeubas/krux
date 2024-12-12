@@ -81,6 +81,7 @@ class WalletDescriptor(Page):
         return MENU_CONTINUE
 
     def _load_wallet(self):
+        """Load a wallet output descriptor from the camera or SD card"""
 
         persisted = False
         load_method = self.load_method()
@@ -160,13 +161,15 @@ class WalletDescriptor(Page):
                 label
                 + FINGERPRINT_SYMBOL
                 + " "
-                + binascii.hexlify(key.fingerprint).decode()
+                + (
+                    binascii.hexlify(key.origin.fingerprint).decode()
+                    if key.origin
+                    else t("unknown")
+                )
             )
         about.extend(fingerprints)
-        if not wallet.is_multisig():
+        if not wallet.is_multisig() and not wallet.is_miniscript():
             about.append(self.fit_to_line(str(wallet.descriptor.keys[0].key)))
-
-        if not wallet.is_multisig():
             if is_loading:
                 self.ctx.display.draw_hcentered_text(about, offset_y=DEFAULT_PADDING)
             else:
