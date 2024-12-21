@@ -48,9 +48,27 @@ PRIV_HEX = "priv-hex"
 NPUB = "npub"
 PUB_HEX = "pub-hex"
 HEX = "hex"
+MNEMONIC = "mnemonic"
+DEFAULT_MNEMONIC = "action action action action action action action action action action action action"
 
 FILE_SUFFIX = "-nostr"
 FILE_EXTENSION = ".txt"
+
+class NostrKey:
+
+    def __init__(self):
+        self.update()
+
+    def update(self, key = "none", value = None):
+        self.key = key
+        self.value = value
+
+    def loaded(self):
+        return self.key in (NSEC, PRIV_HEX, MNEMONIC)
+    
+    def loaded_mnemonic(self):
+        print("loaded_mnemonic", self.key, self.value)
+        return self.key == MNEMONIC
 
 
 class KMenu(Menu):
@@ -58,12 +76,15 @@ class KMenu(Menu):
 
     def draw_wallet_indicator(self):
         """Customize the top bar"""
-        if self.ctx.is_logged_in():
+        text = NAME
+        if nostrKey.loaded_mnemonic():
             super().draw_wallet_indicator()
+        elif nostrKey.loaded():
+            text = nostrKey.key.upper()
         else:
             if self.ctx.display.width() > NARROW_SCREEN_WITH:
                 self.ctx.display.draw_hcentered_text(
-                    NAME,
+                    text,
                     STATUS_BAR_HEIGHT - FONT_HEIGHT - 1,
                     theme.highlight_color,
                     theme.info_bg_color,
@@ -72,7 +93,7 @@ class KMenu(Menu):
                 self.ctx.display.draw_string(
                     24,
                     STATUS_BAR_HEIGHT - FONT_HEIGHT - 1,
-                    NAME,
+                    text,
                     theme.highlight_color,
                     theme.info_bg_color,
                 )
@@ -98,6 +119,7 @@ class Klogin(Login):
     # Follow NIP-06 ?
     # Basic key derivation from mnemonic seed phrase
     # https://github.com/nostr-protocol/nips/blob/master/06.md
+    # https://github.com/vitorpamplona/amethyst/tree/main/quartz/src/main/java/com/vitorpamplona/quartz/crypto/nip06
     def _confirm_wallet_key(self, mnemonic):
         from krux.key import Key
         from embit.networks import NETWORKS
@@ -140,24 +162,20 @@ class Klogin(Login):
     def _load_nostr_priv_cam(self):
         from krux.pages.qr_capture import QRCodeCapture
 
+        error_msg = t("Failed to load")
         qr_capture = QRCodeCapture(self.ctx)
         data, _ = qr_capture.qr_capture_loop()
         if data is None:
-            self.flash_error(t("Failed to load"))
+            self.flash_error(error_msg)
             return MENU_CONTINUE
 
         try:
             data_str = data.decode() if not isinstance(data, str) else data
-            mnemonic = self._create_mnemonic_from_nostr_priv_key(data_str)
-            if len(mnemonic.split(" ")) != 24:
-                raise ValueError("Mnemonic must have 24 words")
+            if not self._load_nostr_priv_key(data_str):
+                raise ValueError()
         except:
-            self.flash_error(t("Failed to load"))
+            self.flash_error(error_msg)
             return MENU_CONTINUE
-
-        from krux.wallet import Wallet
-
-        self.ctx.wallet = Wallet(self._confirm_wallet_key(mnemonic))
 
         return MENU_EXIT
 
@@ -187,16 +205,11 @@ class Klogin(Login):
             return MENU_CONTINUE
 
         try:
-            mnemonic = self._create_mnemonic_from_nostr_priv_key(data)
-            if len(mnemonic.split(" ")) != 24:
-                raise ValueError("Mnemonic must have 24 words")
+            if not self._load_nostr_priv_key(data):
+                raise ValueError()
         except:
             self.flash_error(t("Failed to load"))
             return MENU_CONTINUE
-
-        from krux.wallet import Wallet
-
-        self.ctx.wallet = Wallet(self._confirm_wallet_key(mnemonic))
 
         return MENU_EXIT
 
@@ -218,7 +231,8 @@ class Klogin(Login):
                 data = sd.read(filename)
 
             data = data.replace("\r\n", "").replace("\n", "")
-            mnemonic = self._create_mnemonic_from_nostr_priv_key(data)
+            if not self._load_nostr_priv_key(data):
+                raise ValueError()
         except:
             self.flash_error(t("Failed to load"))
             return MENU_CONTINUE
@@ -229,17 +243,22 @@ class Klogin(Login):
 
         return MENU_EXIT
 
-    def _create_mnemonic_from_nostr_priv_key(self, data):
-        from embit import bech32, bip39
-
+    def _load_nostr_priv_key(self, data):
         if data.startswith(NSEC) and len(data) == NSEC_SIZE:
-            _, _, data = bech32.bech32_decode(data)
-            decoded = bech32.convertbits(data, 5, 8, False)
-            return bip39.mnemonic_from_bytes(bytes(decoded))
+            nostrKey.update(NSEC, data)
+            self._load_fake_mnemonic()
+            return True
         if len(data) == HEX_SIZE:
-            return bip39.mnemonic_from_bytes(bytes.fromhex(data))
+            nostrKey.update(PRIV_HEX, data)
+            self._load_fake_mnemonic()
+            return True
 
-        return ""
+        return False
+    
+    def _load_fake_mnemonic(self):
+        from krux.wallet import Wallet
+
+        self.ctx.wallet = Wallet(self._confirm_wallet_key(DEFAULT_MNEMONIC))
 
     def about(self):
         """Handler for the 'about' menu item"""
@@ -258,14 +277,15 @@ class Khome(Home):
     def __init__(self, ctx):
         super().__init__(ctx)
 
-        self.menu = Menu(
+        self.menu = KMenu(
             ctx,
             [
                 (
                     t("Backup Mnemonic"),
                     (
                         self.backup_mnemonic
-                        if not Settings().security.hide_mnemonic
+                        if not Settings().security.hide_mnemonic and
+                        nostrKey.loaded_mnemonic()
                         else None
                     ),
                 ),
@@ -280,9 +300,6 @@ class Khome(Home):
     def nostr_keys(self):
         """Handler for Nostr Keys menu item"""
 
-        if len(self.ctx.wallet.key.mnemonic.split(" ")) < 24:
-            self.flash_error(t("Mnemonic must have 24 words!"))
-            return MENU_CONTINUE
         try:
             self._get_private_key()
         except:
@@ -425,3 +442,6 @@ def run(ctx):
                 break
 
     print("Exited!!!!")
+
+
+nostrKey = NostrKey()
