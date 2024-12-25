@@ -50,7 +50,8 @@ The *TC Flash Hash* tool enables you to verify if the device's internal flash me
 - **User's Region:** The area used to stored encrypted mnemonics, settings and TC Code. It generates the last set of two words.
 
 <div style="text-align: center;">
-    <img src="../../../img/maixpy_amigo/tc-flash-hash-150.png" alt="TC Flash Hash">
+    <img src="../../../img/maixpy_amigo/tc-flash-hash-150.png" alt="TC Flash Hash amigo">
+    <img src="../../../img/maixpy_m5stickv/tc-flash-hash-125.png" alt="TC Flash Hash m5stickv">
 </div>
 
 *Example: The red symbol and words 'debate lunar' represent the firmware region, while 'renew great' user's region.*
