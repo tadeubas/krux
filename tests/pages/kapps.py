@@ -107,4 +107,106 @@ def test_valid_signature(m5stickv, mocker):
     assert sig
 
 
+def test_execute_flash_kapp(m5stickv, mocker):
+    from krux.pages.kapps import Kapps
+    from krux.pages import MENU_CONTINUE
+    from krux.input import BUTTON_PAGE, BUTTON_ENTER
+    import os, sys
+    from krux.settings import FLASH_PATH
+    from krux.themes import theme
 
+    btn_seq = [
+        BUTTON_PAGE, # case 1 skip prompt
+        BUTTON_ENTER, # case 2 accept prompt to execute
+        BUTTON_PAGE, # case 2 dismiss error msg
+        BUTTON_ENTER, # case 3 accept prompt to execute
+        ]
+
+    ##########################################
+    print("Case 1: Exit when prompted to execute the app")
+    mocker.patch(
+        "os.listdir",
+        new=mocker.MagicMock(return_value=[]),
+    )
+
+    ctx = create_ctx(mocker, btn_seq)
+    kapps = Kapps(ctx)
+
+    mocker.spy(kapps, "prompt")
+
+    kapp_name = "anykappname"
+    result = kapps.execute_flash_kapp(kapp_name)
+
+    assert result == MENU_CONTINUE
+    assert kapps.prompt.called
+    kapps.prompt.assert_called_with("Execute %s Krux app?" % kapp_name, ctx.display.height() // 2)
+
+
+    #########################################
+    print("Case 2: Continue to execut the app, skip error msg")
+
+    mocker.patch(
+        "os.chdir",
+        new=mocker.MagicMock(),
+    )
+
+    # avoid call sys.exit() after app execution otherwise will exit test and fail
+    mocker.patch(
+        "sys.exit",
+        new=mocker.MagicMock(),
+    )
+
+    mocker.spy(ctx.display, "draw_centered_text")
+
+    kapps.execute_flash_kapp(kapp_name)
+    assert os.chdir.called
+    
+    # First changed to flash path and execut app, then return to / when error appear
+    os.chdir.assert_has_calls(
+        [
+            mocker.call(
+                "/" + FLASH_PATH
+            ),
+            mocker.call(
+                "/"
+            ),
+        ]
+    )
+
+    assert sys.exit.called
+
+    assert ctx.display.draw_centered_text.called
+    ctx.display.draw_centered_text.assert_called_with("Error:" + "\n" + "Could not execute %s" % kapp_name, theme.error_color)
+
+
+    #######################################
+    print("Case 3: app executed")
+
+    mocker.spy(ctx.display, "draw_centered_text")
+
+    sys.path.append(os.getcwd() + "/tests/files")
+
+    kapps.execute_flash_kapp("kapp")
+    assert os.chdir.called
+    
+    # First changed to flash path and execut app, then return to / when error appear
+    os.chdir.assert_has_calls(
+        [
+            mocker.call(
+                "/" + FLASH_PATH
+            ),
+            mocker.call(
+                "/"
+            ),
+        ]
+    )
+
+    assert sys.exit.called
+
+    assert not ctx.display.draw_centered_text.called
+
+
+def test_load_sd_kapp(m5stickv, mocker):
+    # TODO: make this
+
+    assert True
