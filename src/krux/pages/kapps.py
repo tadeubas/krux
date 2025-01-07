@@ -207,6 +207,8 @@ class Kapps(Page):
             if file.endswith(MPY_FILE_EXTENSION):
                 if sha256(flash_path_prefix + file) == data_hash:
                     found_in_flash_vfs = True
+                    filename_flash = file
+                    break
 
         # Copy kapp + sig from SD to flash VFS, if app not found
         if not found_in_flash_vfs:
