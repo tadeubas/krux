@@ -54,18 +54,19 @@ DEFAULT_MNEMONIC = "action action action action action action action action acti
 FILE_SUFFIX = "-nostr"
 FILE_EXTENSION = ".txt"
 
+
 class NostrKey:
 
     def __init__(self):
         self.update()
 
-    def update(self, key = "none", value = None):
+    def update(self, key="none", value=None):
         self.key = key
         self.value = value
 
     def loaded(self):
         return self.key in (NSEC, PRIV_HEX, MNEMONIC)
-    
+
     def loaded_mnemonic(self):
         print("loaded_mnemonic", self.key, self.value)
         return self.key == MNEMONIC
@@ -78,25 +79,25 @@ class KMenu(Menu):
         """Customize the top bar"""
         text = NAME
         if nostrKey.loaded_mnemonic():
-            super().draw_wallet_indicator()
+            text = self.ctx.wallet.key.fingerprint_hex_str(True)
         elif nostrKey.loaded():
             text = nostrKey.key.upper()
+
+        if self.ctx.display.width() > NARROW_SCREEN_WITH:
+            self.ctx.display.draw_hcentered_text(
+                text,
+                STATUS_BAR_HEIGHT - FONT_HEIGHT - 1,
+                theme.highlight_color,
+                theme.info_bg_color,
+            )
         else:
-            if self.ctx.display.width() > NARROW_SCREEN_WITH:
-                self.ctx.display.draw_hcentered_text(
-                    text,
-                    STATUS_BAR_HEIGHT - FONT_HEIGHT - 1,
-                    theme.highlight_color,
-                    theme.info_bg_color,
-                )
-            else:
-                self.ctx.display.draw_string(
-                    24,
-                    STATUS_BAR_HEIGHT - FONT_HEIGHT - 1,
-                    text,
-                    theme.highlight_color,
-                    theme.info_bg_color,
-                )
+            self.ctx.display.draw_string(
+                24,
+                STATUS_BAR_HEIGHT - FONT_HEIGHT - 1,
+                text,
+                theme.highlight_color,
+                theme.info_bg_color,
+            )
 
 
 class Klogin(Login):
@@ -254,7 +255,7 @@ class Klogin(Login):
             return True
 
         return False
-    
+
     def _load_fake_mnemonic(self):
         from krux.wallet import Wallet
 
@@ -284,8 +285,8 @@ class Khome(Home):
                     t("Backup Mnemonic"),
                     (
                         self.backup_mnemonic
-                        if not Settings().security.hide_mnemonic and
-                        nostrKey.loaded_mnemonic()
+                        if not Settings().security.hide_mnemonic
+                        and nostrKey.loaded_mnemonic()
                         else None
                     ),
                 ),
@@ -299,6 +300,10 @@ class Khome(Home):
 
     def nostr_keys(self):
         """Handler for Nostr Keys menu item"""
+
+        if nostrKey.loaded_mnemonic:
+            if not self.prompt(t("Create NIP06 keys?")):
+                return MENU_CONTINUE
 
         try:
             self._get_private_key()
