@@ -1,14 +1,13 @@
 import pytest
 from . import create_ctx
 
+
 @pytest.fixture
 def mocker_printer(mocker):
     mocker.patch("krux.printers.thermal.AdafruitPrinter", new=mocker.MagicMock())
 
 
 ################### Test menus
-
-
 
 
 def test_klogin_shutdown(m5stickv, mocker):
@@ -21,7 +20,7 @@ def test_klogin_shutdown(m5stickv, mocker):
         # Exit (shutdown / reset)
         BUTTON_ENTER,
         # Are you sure?
-        BUTTON_ENTER
+        BUTTON_ENTER,
     )
 
     ctx = create_ctx(mocker, BTN_SEQUENCE)
@@ -46,6 +45,7 @@ def test_klogin_about(m5stickv, mocker):
 
     assert return_status == MENU_CONTINUE
     assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
+
 
 def test_menu_load_from_manual(m5stickv, mocker):
     from krux.pages.login import Login

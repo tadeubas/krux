@@ -23,19 +23,6 @@
 import sys
 from embit.networks import NETWORKS
 from embit.wordlists.bip39 import WORDLIST
-from ..display import DEFAULT_PADDING, FONT_HEIGHT, BOTTOM_PROMPT_LINE
-from ..krux_settings import Settings
-from ..qr import FORMAT_UR
-from ..key import (
-    Key,
-    P2WSH,
-    SCRIPT_LONG_NAMES,
-    TYPE_SINGLESIG,
-    TYPE_MULTISIG,
-    TYPE_MINISCRIPT,
-    POLICY_TYPE_IDS,
-)
-from ..krux_settings import t
 from . import (
     Page,
     Menu,
@@ -44,11 +31,32 @@ from . import (
     MENU_EXIT,
     ESC_KEY,
     LETTERS,
+    EXTRA_MNEMONIC_LENGTH_FLAG,
     choose_len_mnemonic,
 )
+from ..display import DEFAULT_PADDING, FONT_HEIGHT, BOTTOM_PROMPT_LINE
+from ..krux_settings import Settings
+from ..qr import FORMAT_UR
+from ..key import (
+    Key,
+    P2WSH,
+    P2TR,
+    SCRIPT_LONG_NAMES,
+    TYPE_SINGLESIG,
+    TYPE_MULTISIG,
+    TYPE_MINISCRIPT,
+    POLICY_TYPE_IDS,
+)
+from ..krux_settings import t
+from ..settings import NAME_SINGLE_SIG, NAME_MULTISIG, NAME_MINISCRIPT
+
 
 DIGITS_HEX = "0123456789ABCDEF"
 DIGITS_OCT = "01234567"
+
+DOUBLE_MNEMONICS_MAX_TRIES = 200
+MASK256 = (1 << 256) - 1
+MASK128 = (1 << 128) - 1
 
 
 class Login(Page):
@@ -64,7 +72,14 @@ class Login(Page):
                 ctx,
                 [
                     (t("Load Mnemonic"), self.load_key),
-                    (t("New Mnemonic"), self.new_key),
+                    (
+                        t("New Mnemonic"),
+                        (
+                            self.new_key
+                            if not Settings().security.hide_mnemonic
+                            else None
+                        ),
+                    ),
                     (t("Settings"), self.settings),
                     (t("Tools"), self.tools),
                     (t("About"), self.about),
@@ -186,89 +201,87 @@ class Login(Page):
             if entropy_bytes is not None:
                 import binascii
                 from embit.bip39 import mnemonic_from_bytes
+                from ..bip39 import entropy_checksum
 
                 entropy_hash = binascii.hexlify(entropy_bytes).decode()
                 self.ctx.display.clear()
                 self.ctx.display.draw_centered_text(
-                    t("SHA256 of snapshot:") + "\n\n%s" % entropy_hash
+                    t("SHA256 of snapshot:") + "\n\n%s" % entropy_hash,
+                    highlight_prefix=":",
                 )
                 self.ctx.input.wait_for_button()
 
-                self.ctx.display.clear()
-                self.ctx.display.draw_centered_text(t("Processing.."))
+                # Checks if user wants to create a double mnemonic
+                if len_mnemonic == EXTRA_MNEMONIC_LENGTH_FLAG:
+
+                    # import time  # Debug
+                    # pre_t = time.ticks_ms()  # Debug
+
+                    # split the mnemonic into two parts
+                    first_12_entropy = entropy_bytes[:16]
+                    second_12_entropy = entropy_bytes[16:32]
+
+                    # calculate the checksum for the first 12 words
+                    checksum1 = entropy_checksum(first_12_entropy, 4)
+                    # print first 12 words
+
+                    # replace checksum1 as first 4 bits of second 12 words
+                    snd_12_array = bytearray(second_12_entropy)
+                    snd_12_array[0] = (snd_12_array[0] & 0x0F) | (
+                        (checksum1 & 0x0F) << 4
+                    )
+                    second_12_entropy = bytes(snd_12_array)
+                    # reassemble the 256 bits entropy that has first 12 words with valid checksum
+                    entropy_bytes = first_12_entropy + second_12_entropy
+
+                    # Increment 1 to full 24 words entropy until
+                    # both last 12 words and all 24 have valid checksum
+                    tries = 0
+                    entropy_int = int.from_bytes(entropy_bytes, "big")
+                    while True:
+                        # calculate the checksum for the new 24 words
+                        ck_sum_24 = entropy_checksum(entropy_bytes, 8)
+
+                        # Extract the lower 128 bits from the integer.
+                        snd_12_int = entropy_int & MASK128
+                        # Shift and combine with first 4 bits of the 24 wwords checksum
+                        shifted_entr = ((snd_12_int << 4) & MASK128) | (ck_sum_24 >> 4)
+                        shifted_entropy_bytes = shifted_entr.to_bytes(16, "big")
+                        checksum_l_12 = entropy_checksum(shifted_entropy_bytes, 4)
+                        # check if checksum_l_12 is equal to the last 4 bits of the
+                        # checksum of the full 24 words
+                        if checksum_l_12 == (ck_sum_24 & 0x0F):
+                            break
+
+                        # Increment the integer value and mask to 256 bits.
+                        entropy_int = (entropy_int + 1) & MASK256
+                        entropy_bytes = entropy_int.to_bytes(32, "big")
+                        tries += 1
+                        if tries > DOUBLE_MNEMONICS_MAX_TRIES:
+                            raise ValueError("Failed to find a valid double mnemonic")
+                    # print("Tries: {} / {} ms".format(tries, time.ticks_ms() - pre_t))  # Debug
 
                 num_bytes = 16 if len_mnemonic == 12 else 32
                 entropy_mnemonic = mnemonic_from_bytes(entropy_bytes[:num_bytes])
-
-                # Double mnemonic check
-                if len_mnemonic == 48:
-                    from ..wallet import is_double_mnemonic
-
-                    if not is_double_mnemonic(entropy_mnemonic):
-                        from ..wdt import wdt
-                        import time
-                        from krux.bip39 import mnemonic_is_valid
-
-                        pre_t = time.ticks_ms()
-                        tries = 0
-
-                        # create two 12w mnemonic with the provided entropy
-                        first_12 = mnemonic_from_bytes(entropy_bytes[:16])
-                        second_entropy_mnemonic_int = int.from_bytes(
-                            entropy_bytes[16:32], "big"
-                        )
-                        double_mnemonic = False
-                        while not double_mnemonic:
-                            wdt.feed()
-                            tries += 1
-                            # increment the second mnemonic entropy
-                            second_entropy_mnemonic_int += 1
-                            second_12 = mnemonic_from_bytes(
-                                second_entropy_mnemonic_int.to_bytes(16, "big")
-                            )
-                            entropy_mnemonic = first_12 + " " + second_12
-                            double_mnemonic = mnemonic_is_valid(entropy_mnemonic)
-
-                        print(
-                            "Tries: %d" % tries,
-                            "/ %d" % (time.ticks_ms() - pre_t),
-                            "ms",
-                        )
-
                 return self._load_key_from_words(entropy_mnemonic.split(), new=True)
         return MENU_CONTINUE
 
-    def _confirm_mnemonic_numbers(self, mnemonic, charset):
-        from .utils import Utils
+    def _load_key_from_words(self, words, charset=LETTERS, new=False):
+        mnemonic = " ".join(words)
 
-        charset_type = {
-            DIGITS: Utils.BASE_DEC,
-            DIGITS_HEX: Utils.BASE_HEX,
-            DIGITS_OCT: Utils.BASE_OCT,
-        }
-        suffix_dict = {
-            DIGITS: Utils.BASE_DEC_SUFFIX,
-            DIGITS_HEX: Utils.BASE_HEX_SUFFIX,
-            DIGITS_OCT: Utils.BASE_OCT_SUFFIX,
-        }
-        numbers_str = Utils.get_mnemonic_numbers(mnemonic, charset_type[charset])
-        self.display_mnemonic(numbers_str, suffix_dict[charset])
-        if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
-            return False
-
-        return True
-
-    def _confirm_mnemonic_letters(self, mnemonic, new):
-        from .mnemonic_editor import MnemonicEditor
+        if charset != LETTERS:
+            if self._confirm_key_from_digits(mnemonic, charset) is not None:
+                return MENU_CONTINUE
 
         # If the mnemonic is not hidden, show the mnemonic editor
         if not Settings().security.hide_mnemonic:
-            mnemonic_editor = MnemonicEditor(self.ctx, mnemonic, new)
-            mnemonic = mnemonic_editor.edit()
+            from .mnemonic_editor import MnemonicEditor
 
-        return mnemonic
+            mnemonic = MnemonicEditor(self.ctx, mnemonic, new).edit()
+        if mnemonic is None:
+            return MENU_CONTINUE
+        self.ctx.display.clear()
 
-    def _confirm_wallet_key(self, mnemonic):
         passphrase = ""
         if not hasattr(Settings().wallet, "policy_type") and hasattr(
             Settings().wallet, "multisig"
@@ -285,23 +298,37 @@ class Login(Page):
         account = 0
         if policy_type == TYPE_SINGLESIG:
             script_type = SCRIPT_LONG_NAMES.get(Settings().wallet.script_type)
+        elif policy_type == TYPE_MINISCRIPT and Settings().wallet.script_type == P2TR:
+            script_type = P2TR
         else:
             script_type = P2WSH
+        derivation_path = ""
+        from ..wallet import Wallet
+        from ..themes import theme
 
         while True:
-            key = Key(mnemonic, policy_type, network, passphrase, account, script_type)
-
-            wallet_info = key.fingerprint_hex_str(True) + "\n"
+            key = Key(
+                mnemonic,
+                policy_type,
+                network,
+                passphrase,
+                account,
+                script_type,
+                derivation_path,
+            )
+            if not derivation_path:
+                derivation_path = key.derivation
+            wallet_info = "\n"
             wallet_info += network["name"] + "\n"
             if policy_type == TYPE_SINGLESIG:
-                wallet_info += "Single-sig" + "\n"
+                wallet_info += NAME_SINGLE_SIG + "\n"
             elif policy_type == TYPE_MULTISIG:
-                wallet_info += "Multisig" + "\n"
+                wallet_info += NAME_MULTISIG + "\n"
             elif policy_type == TYPE_MINISCRIPT:
-                wallet_info += "Miniscript" + "\n"
-            wallet_info += (
-                self.fit_to_line(key.derivation_str(True), crop_middle=False) + "\n"
-            )
+                if script_type == P2TR:
+                    wallet_info += "TR "
+                wallet_info += NAME_MINISCRIPT + "\n"
+            wallet_info += key.derivation_str(True) + "\n"
             wallet_info += (
                 t("No Passphrase") if not passphrase else t("Passphrase") + ": *..*"
             )
@@ -319,11 +346,17 @@ class Login(Page):
                     + DEFAULT_PADDING
                 ),
             )
+            # draw fingerprint with highlight color
+            self.ctx.display.draw_hcentered_text(
+                key.fingerprint_hex_str(True),
+                color=theme.highlight_color,
+                bg_color=theme.info_bg_color,
+            )
             index, _ = submenu.run_loop()
             if index == len(submenu.menu) - 1:
                 if self.prompt(t("Are you sure?"), self.ctx.display.height() // 2):
                     del key
-                    return None
+                    return MENU_CONTINUE
             if index == 0:
                 break
             if index == 1:
@@ -337,35 +370,40 @@ class Login(Page):
                 from .wallet_settings import WalletSettings
 
                 wallet_settings = WalletSettings(self.ctx)
-                network, policy_type, script_type, account = (
+                network, policy_type, script_type, account, derivation_path = (
                     wallet_settings.customize_wallet(key)
                 )
 
-        return key
-
-    def _load_key_from_words(self, words, charset=LETTERS, new=False):
-        mnemonic = " ".join(words)
-
-        if charset != LETTERS:
-            if not self._confirm_mnemonic_numbers(mnemonic, charset):
-                return MENU_CONTINUE
-            self.ctx.display.clear()
-
-        mnemonic = self._confirm_mnemonic_letters(mnemonic, new)
-        if mnemonic is None:
-            return MENU_CONTINUE
-        self.ctx.display.clear()
-
-        key = self._confirm_wallet_key(mnemonic)
-        if key is None:
-            return MENU_CONTINUE
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(t("Loading.."))
 
-        from ..wallet import Wallet
-
         self.ctx.wallet = Wallet(key)
         return MENU_EXIT
+
+    def _confirm_key_from_digits(self, mnemonic, charset):
+        from .utils import Utils
+
+        charset_type = {
+            DIGITS: Utils.BASE_DEC,
+            DIGITS_HEX: Utils.BASE_HEX,
+            DIGITS_OCT: Utils.BASE_OCT,
+        }
+        suffix_dict = {
+            DIGITS: Utils.BASE_DEC_SUFFIX,
+            DIGITS_HEX: Utils.BASE_HEX_SUFFIX,
+            DIGITS_OCT: Utils.BASE_OCT_SUFFIX,
+        }
+        numbers_str = Utils.get_mnemonic_numbers(mnemonic, charset_type[charset])
+        self.display_mnemonic(
+            numbers_str,
+            suffix_dict[charset],
+            fingerprint=Key.extract_fingerprint(mnemonic),
+        )
+        if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
+            return MENU_CONTINUE
+        self.ctx.display.clear()
+
+        return None
 
     def _encrypted_qr_code(self, data):
         from ..encryption import EncryptedQRCode
@@ -555,6 +593,7 @@ class Login(Page):
                 if self.prompt(
                     str(len(words) + 1) + ".\n\n" + word_num + word + "\n\n",
                     self.ctx.display.height() // 2,
+                    highlight_prefix=":",
                 ):
                     words.append(word)
 
@@ -570,10 +609,10 @@ class Login(Page):
             len_mnemonic = choose_len_mnemonic(self.ctx)
             if not len_mnemonic:
                 return MENU_CONTINUE
-            title = t("Enter %d BIP-39 words.") % len_mnemonic
+            title = t("Enter %d BIP39 words.") % len_mnemonic
         else:
             len_mnemonic = None
-            title = t("Enter each word of your BIP-39 mnemonic.")
+            title = t("Enter each word of your BIP39 mnemonic.")
 
         mnemonic_editor = MnemonicEditor(self.ctx)
         mnemonic_editor.compute_search_ranges()
@@ -606,7 +645,7 @@ class Login(Page):
     def load_key_from_octal(self):
         """Handler for the 'load mnemonic'>'via numbers'>'octal' submenu item"""
         title = t(
-            "Enter each word of your BIP-39 mnemonic as a number in octal from 1 to 4000."
+            "Enter each word of your BIP39 mnemonic as a number in octal from 1 to 4000."
         )
 
         def autocomplete(prefix):
@@ -616,9 +655,10 @@ class Login(Page):
             return None
 
         def to_word(user_input):
-            word_num = int(user_input, 8)
-            if 0 < word_num <= 2048:
-                return WORDLIST[word_num - 1]
+            if user_input:
+                word_num = int(user_input, 8)
+                if 0 < word_num <= 2048:
+                    return WORDLIST[word_num - 1]
             return ""
 
         def possible_letters(prefix):
@@ -639,7 +679,7 @@ class Login(Page):
     def load_key_from_hexadecimal(self):
         """Handler for the 'load mnemonic'>'via numbers'>'hexadecimal' submenu item"""
         title = t(
-            "Enter each word of your BIP-39 mnemonic as a number in hexadecimal from 1 to 800."
+            "Enter each word of your BIP39 mnemonic as a number in hexadecimal from 1 to 800."
         )
 
         def autocomplete(prefix):
@@ -649,9 +689,10 @@ class Login(Page):
             return None
 
         def to_word(user_input):
-            word_num = int(user_input, 16)
-            if 0 < word_num <= 2048:
-                return WORDLIST[word_num - 1]
+            if user_input:
+                word_num = int(user_input, 16)
+                if 0 < word_num <= 2048:
+                    return WORDLIST[word_num - 1]
             return ""
 
         def possible_letters(prefix):
@@ -671,7 +712,7 @@ class Login(Page):
 
     def load_key_from_digits(self):
         """Handler for the 'load mnemonic'>'via numbers'>'decimal' submenu item"""
-        title = t("Enter each word of your BIP-39 mnemonic as a number from 1 to 2048.")
+        title = t("Enter each word of your BIP39 mnemonic as a number from 1 to 2048.")
 
         def autocomplete(prefix):
             if len(prefix) == 4 or (len(prefix) == 3 and int(prefix) > 204):
@@ -679,9 +720,10 @@ class Login(Page):
             return None
 
         def to_word(user_input):
-            word_num = int(user_input)
-            if 0 < word_num <= 2048:
-                return WORDLIST[word_num - 1]
+            if user_input:
+                word_num = int(user_input)
+                if 0 < word_num <= 2048:
+                    return WORDLIST[word_num - 1]
             return ""
 
         def possible_letters(prefix):
@@ -774,15 +816,16 @@ class Login(Page):
 
         import board
         from ..metadata import VERSION
+        from ..qr import FORMAT_NONE
 
-        self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(
-            "Krux\n"
-            + "selfcustody.github.io/krux\n\n"
+        title = "selfcustody.github.io/krux"
+        msg = (
+            title
+            + "\n"
             + t("Hardware")
-            + "\n%s\n\n" % board.config["type"]
+            + ": %s\n" % board.config["type"]
             + t("Version")
-            + "\n%s" % VERSION
+            + ": %s" % VERSION
         )
-        self.ctx.input.wait_for_button()
+        self.display_qr_codes(title, FORMAT_NONE, msg, highlight_prefix=":")
         return MENU_CONTINUE
