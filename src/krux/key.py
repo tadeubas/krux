@@ -42,33 +42,32 @@ from .settings import (
 DER_SINGLE = "m/%dh/%dh/%dh"
 DER_MULTI = "m/%dh/%dh/%dh/2h"
 DER_MINISCRIPT = "m/%dh/%dh/%dh/2h"
-HARDENED_STR_REPLACE = "'"
 
-# Pay To Public Key Hash - 44' Legacy single-sig
+# Pay To Public Key Hash - 44h Legacy single-sig
 # address starts with 1 (mainnet) or m (testnet)
 P2PKH = "p2pkh"
 
-# Pay To Script Hash - 45' Legacy multisig
+# Pay To Script Hash - 45h Legacy multisig
 # address starts with 3 (mainnet) or 2 (testnet)
 P2SH = "p2sh"
 
-# Pay To Witness Public Key Hash Wrapped In P2SH - 49' Nested Segwit single-sig
+# Pay To Witness Public Key Hash Wrapped In P2SH - 49h Nested Segwit single-sig
 # address starts with 3 (mainnet) or 2 (testnet)
 P2SH_P2WPKH = "p2sh-p2wpkh"
 
-# Pay To Witness Script Hash Wrapped In P2SH - 48'/0'/0'/1' Nested Segwit multisig
+# Pay To Witness Script Hash Wrapped In P2SH - 48h/0h/0h/1h Nested Segwit multisig
 # address starts with 3 (mainnet) or 2 (testnet)
 P2SH_P2WSH = "p2sh-p2wsh"
 
-# Pay To Witness Public Key Hash - 84' Native Segwit single-sig
+# Pay To Witness Public Key Hash - 84h Native Segwit single-sig
 # address starts with bc1q (mainnet) or tb1q (testnet)
 P2WPKH = "p2wpkh"
 
-# Pay To Witness Script Hash - 48'/0'/0'/2' Native Segwit multisig
+# Pay To Witness Script Hash - 48h/0h/0h/2h Native Segwit multisig
 # address starts with bc1q (mainnet) or tb1q (testnet)
 P2WSH = "p2wsh"
 
-# Pay To Taproot - 86' Taproot single-sig
+# Pay To Taproot - 86h Taproot single-sig
 # address starts with bc1p (mainnet) or tb1p (testnet)
 P2TR = "p2tr"
 
@@ -104,7 +103,7 @@ DERIVATION_PATH_SYMBOL = "↳"
 
 
 class Key:
-    """Represents a BIP-39 mnemonic-based private key"""
+    """Represents a BIP39 mnemonic-based private key"""
 
     def __init__(
         self,
@@ -114,25 +113,52 @@ class Key:
         passphrase="",
         account_index=0,
         script_type=P2WPKH,
+        derivation="",
     ):
         self.mnemonic = mnemonic
         self.policy_type = policy_type
         self.network = network
         self.passphrase = passphrase
         self.account_index = account_index
-        self.script_type = script_type if policy_type == TYPE_SINGLESIG else P2WSH
-        self.root = bip32.HDKey.from_seed(
-            bip39.mnemonic_to_seed(mnemonic, passphrase), version=network["xprv"]
-        )
+        if policy_type == TYPE_MULTISIG and script_type != P2WSH:
+            script_type = P2WSH
+        if policy_type == TYPE_MINISCRIPT and script_type not in (P2WSH, P2TR):
+            script_type = P2WSH
+        self.script_type = script_type
+        self.root = Key.extract_root(mnemonic, passphrase, network)
         self.fingerprint = self.root.child(0).fingerprint
-        self.derivation = self.get_default_derivation(
-            self.policy_type, self.network, self.account_index, self.script_type
-        )
+        if not derivation:
+            self.derivation = self.get_default_derivation(
+                self.policy_type, self.network, self.account_index, self.script_type
+            )
+        else:
+            self.derivation = derivation
         self.account = self.root.derive(self.derivation).to_public()
 
     def xpub(self, version=None):
         """Returns the xpub representation of the extended master public key"""
         return self.account.to_base58(version)
+
+    @classmethod
+    def extract_fingerprint(
+        cls, mnemonic, passphrase="", network=NETWORKS[TEST_TXT], pretty=True
+    ):
+        """Calculate and return the fingerprint based on mnemonic"""
+        try:
+            return Key.format_fingerprint(
+                Key.extract_root(mnemonic, passphrase, network).child(0).fingerprint,
+                pretty,
+            )
+        except:
+            pass
+        return ""
+
+    @classmethod
+    def extract_root(cls, mnemonic, passphrase, network):
+        """Calculate and return the BIP32 root key based on mnemonic"""
+        return bip32.HDKey.from_seed(
+            bip39.mnemonic_to_seed(mnemonic, passphrase), version=network["xprv"]
+        )
 
     def get_xpub(self, path):
         """Returns the xpub for the provided path"""
@@ -214,7 +240,7 @@ class Key:
     def format_derivation(derivation, pretty=False):
         """Helper method to display the derivation path formatted"""
         formatted_txt = DERIVATION_PATH_SYMBOL + THIN_SPACE + "%s" if pretty else "%s"
-        return (formatted_txt % derivation).replace("h", HARDENED_STR_REPLACE)
+        return formatted_txt % derivation
 
     @staticmethod
     def format_fingerprint(fingerprint, pretty=False):

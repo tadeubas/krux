@@ -32,7 +32,7 @@ wait 2
 press BUTTON_B
 press_amigo_only BUTTON_A
 
-screenshot tc-flash-hash-boot-enable.png
+#screenshot tc-flash-hash-boot-enable.png
 
 # cancel enable boot
 press BUTTON_B
