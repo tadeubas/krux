@@ -180,7 +180,8 @@ class Kapps(Page):
         # Confirm hash string
         self.ctx.display.clear()
         self.ctx.display.draw_hcentered_text(
-            filename + "\n\n" + "SHA256:\n" + binascii.hexlify(data_hash).decode()
+            filename + "\n\n" + "SHA256:\n\n" + binascii.hexlify(data_hash).decode(),
+            highlight_prefix=":",
         )
         if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
             return MENU_CONTINUE
@@ -202,6 +203,7 @@ class Kapps(Page):
 
         # Check if app is already installed in flash
         found_in_flash_vfs = False
+        filename_flash = ""
         flash_path_prefix = "/%s/" % FLASH_PATH
         for file in os.listdir(flash_path_prefix):
             if file.endswith(MPY_FILE_EXTENSION):
@@ -221,7 +223,7 @@ class Kapps(Page):
                 return MENU_CONTINUE
 
             # Save APP .mpy
-            filename_flash = filename.rsplit("/", maxsplit=1)[-1]
+            filename_flash = filename.rsplit("/", 1)[-1]
             with open(
                 flash_path_prefix + filename_flash,
                 "wb",
