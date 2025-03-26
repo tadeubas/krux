@@ -60,6 +60,7 @@ def mp_modules(mocker, monkeypatch):
         mocker.MagicMock(statvfs=statvfs),
     )
     monkeypatch.setitem(sys.modules, "deflate", mocker.MagicMock(DeflateIO=DeflateIO))
+    monkeypatch.setitem(sys.modules, "vfs", mocker.MagicMock())
 
 
 @pytest.fixture

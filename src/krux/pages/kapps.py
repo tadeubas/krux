@@ -127,7 +127,9 @@ class Kapps(Page):
             return MENU_CONTINUE
 
         # Allows import of files in flash VFS
-        # TODO: Dinamically enable vsf->execution
+        import vfs
+
+        vfs.exec_allowed(True)
         os.chdir("/" + FLASH_PATH)
 
         # Import and exec the kapp
@@ -137,6 +139,7 @@ class Kapps(Page):
             i_kapp.run(self.ctx)
         except:
             # avoids importing from flash VSF
+            vfs.exec_allowed(False)
             os.chdir("/")
 
             from krux.themes import theme
@@ -150,6 +153,7 @@ class Kapps(Page):
             self.ctx.input.wait_for_button()
 
         # avoids importing from flash VSF
+        vfs.exec_allowed(False)
         os.chdir("/")
 
         # After execution restart Krux (better safe than sorry)

@@ -111,6 +111,7 @@ from kruxsim.mocks import shannon
 from kruxsim.mocks import ft6x36
 from kruxsim.mocks import buttons
 from kruxsim.mocks import rotary
+from kruxsim.mocks import vfs
 from kruxsim.sequence import SequenceExecutor
 
 sequence_executor = None
