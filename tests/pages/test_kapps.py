@@ -180,7 +180,9 @@ def test_execute_flash_kapp(m5stickv, mocker):
 
     mocker.spy(ctx.display, "draw_centered_text")
 
-    sys.path.append(os.getcwd() + "/tests/files")
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    print(dir_path)
+    sys.path.append(dir_path.rsplit("/", 1)[0] + "/files")
 
     kapps.execute_flash_kapp("kapp")
     assert os.chdir.called
