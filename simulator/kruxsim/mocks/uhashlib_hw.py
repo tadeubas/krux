@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 
-# Copyright (c) 2021-2023 Krux contributors
+# Copyright (c) 2021-2025 Krux contributors
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -19,41 +19,18 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-import os
 
-old_listdir = os.listdir
-old_remove = os.remove
-old_chdir = os.chdir
-old_stat = os.stat
+import sys
+import hashlib
+from unittest import mock
 
 
-def new_listdir(path, *args, **kwargs):
-    if path.startswith("/sd"):
-        path = path.lstrip("/")
-    elif path.startswith("/flash"):
-        path = path.replace("/flash", "sd")
-    return old_listdir(path, *args, **kwargs)
+def pbkdf2_hmac_sha256_wrapper(secret, salt, iterations):
+    return hashlib.pbkdf2_hmac("sha256", secret, salt, iterations)
 
 
-def new_remove(path, *args, **kwargs):
-    if path.startswith("/sd"):
-        path = path.lstrip("/")
-    elif path.startswith("/flash"):
-        return
-    return old_remove(path, *args, **kwargs)
-
-
-# Avoid Krux code to change simulator execution dir
-def new_chdir(path):
-    return
-
-
-def new_stat(path, *args, **kwargs):
-    path = path.lstrip("/") if path.startswith("/sd") else path
-    return old_stat(path, *args, **kwargs)
-
-
-setattr(os, "listdir", new_listdir)
-setattr(os, "remove", new_remove)
-setattr(os, "chdir", new_chdir)
-setattr(os, "stat", new_stat)
+if "uhashlib_hw" not in sys.modules:
+    sys.modules["uhashlib_hw"] = mock.MagicMock(
+        pbkdf2_hmac_sha256=pbkdf2_hmac_sha256_wrapper,
+        sha256=hashlib.sha256,
+    )
