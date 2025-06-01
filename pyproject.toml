@@ -127,9 +127,10 @@ git-pull = "git pull git@github.com:selfcustody/krux.git"
 git-pull-https = "git pull https://github.com/selfcustody/krux.git"
 
 # flash tasks
-flash-cmd = "python firmware/Kboot/build/ktool.py -b 2000000 build/kboot.kfpkg"
-flash.ref = "flash-cmd -B goE"
-flash-dock.ref = "flash-cmd -B dan"
+ktool-cmd = "python firmware/Kboot/build/ktool.py -b 2000000"
+flash.ref = "ktool-cmd build/kboot.kfpkg -B goE"
+flash-dock.ref = "ktool-cmd build/kboot.kfpkg -B dan"
+boot.ref = "ktool-cmd -s firmware.bin"
 
 # kapps tasks
 mpy = "./firmware/MaixPy/components/micropython/core/mpy-cross/mpy-cross"
