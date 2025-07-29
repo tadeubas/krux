@@ -191,10 +191,12 @@ def test_access_to_device_tests(m5stickv, mocker):
     from krux.input import BUTTON_ENTER, BUTTON_PAGE, BUTTON_PAGE_PREV
 
     BTN_SEQUENCE = [
+        BUTTON_PAGE,  # select kapps
         BUTTON_PAGE,  # select device tests
         BUTTON_ENTER,  # Go device tests
         BUTTON_PAGE_PREV,  # Go to Back
         BUTTON_ENTER,  # Leave device tests
+        BUTTON_PAGE_PREV,
         BUTTON_PAGE_PREV,
         BUTTON_PAGE_PREV,  # select Back
         BUTTON_ENTER,  # leave

@@ -33,12 +33,12 @@ from krux.pages.login import Login, DIGITS_HEX, DIGITS
 from krux.pages.home_pages.home import Home
 from krux.krux_settings import t, Settings
 from krux.display import (
-    NARROW_SCREEN_WITH,
     STATUS_BAR_HEIGHT,
     FONT_HEIGHT,
     BOTTOM_PROMPT_LINE,
 )
 from krux.themes import theme
+from krux.kboard import kboard
 
 
 NSEC_SIZE = 63
@@ -84,7 +84,7 @@ class KMenu(Menu):
         elif nostrKey.loaded():
             text = nostrKey.key.upper()
 
-        if self.ctx.display.width() > NARROW_SCREEN_WITH:
+        if not kboard.is_m5stickv:
             self.ctx.display.draw_hcentered_text(
                 text,
                 STATUS_BAR_HEIGHT - FONT_HEIGHT - 1,

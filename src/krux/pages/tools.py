@@ -37,7 +37,6 @@ from ..format import generate_thousands_separator
 from ..sd_card import SDHandler
 from ..display import BOTTOM_PROMPT_LINE
 from ..krux_settings import t
-from ..qr import FORMAT_NONE
 import sys
 
 
@@ -152,7 +151,6 @@ class Tools(Page):
 
     def datum_tool(self):
         """Handler for the 'Datum Tool' menu item"""
-        import sys
         from .datum_tool import DatumToolMenu
 
         while True:
@@ -196,7 +194,6 @@ class Tools(Page):
 
     def device_tests(self):
         """Handler for the 'Device Tests' menu item"""
-        import sys
         from .device_tests import DeviceTests
 
         page = DeviceTests(self.ctx)

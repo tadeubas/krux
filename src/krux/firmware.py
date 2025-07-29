@@ -357,6 +357,7 @@ def upgrade():
         return False
 
     # Validate signature
+    firmware_hash = sha256(firmware_path)
     if not check_signature(pubkey, sig, firmware_hash):
         display.flash_text(t("Bad signature"), theme.error_color)
         return False

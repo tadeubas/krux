@@ -31,8 +31,9 @@ print("Print executed inside kapp.py")
 
 from krux.pages import Page, Menu, MENU_CONTINUE
 from krux.krux_settings import t
-from krux.display import NARROW_SCREEN_WITH, STATUS_BAR_HEIGHT, FONT_HEIGHT
+from krux.display import STATUS_BAR_HEIGHT, FONT_HEIGHT
 from krux.themes import theme
+from krux.kboard import kboard
 
 
 class KMenu(Menu):
@@ -40,7 +41,7 @@ class KMenu(Menu):
 
     def draw_wallet_indicator(self):
         """Customize the top bar"""
-        if self.ctx.display.width() > NARROW_SCREEN_WITH:
+        if not kboard.is_m5stickv:
             self.ctx.display.draw_hcentered_text(
                 NAME,
                 STATUS_BAR_HEIGHT - FONT_HEIGHT - 1,
