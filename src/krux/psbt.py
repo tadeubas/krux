@@ -64,7 +64,7 @@ class PSBTSigner:
         # Parse the PSBT
         if psbt_filename:
             gc.collect()
-            from .sd_card import SD_PATH
+            from .settings import SD_PATH
 
             file_path = "/%s/%s" % (SD_PATH, psbt_filename)
             try:
@@ -101,8 +101,6 @@ class PSBTSigner:
             except:
                 raise ValueError("invalid PSBT")
         else:
-            # Process as bytes
-            psbt_data = psbt_data.encode() if isinstance(psbt_data, str) else psbt_data
             try:
                 self.psbt = PSBT.parse(psbt_data)
                 if self.qr_format == FORMAT_PMOFN:
@@ -119,7 +117,9 @@ class PSBTSigner:
                         self.base_encoding = 58
                     except:
                         try:
-                            self.psbt = PSBT.parse(base_decode(psbt_data, 43))
+                            import base43
+
+                            self.psbt = PSBT.parse(base43.decode(psbt_data))
                             self.base_encoding = 43
                         except:
                             raise ValueError("invalid PSBT")
@@ -141,7 +141,7 @@ class PSBTSigner:
                 return False
             try:
                 # Try to decode the chunk as base64
-                base_decode(chunk, 64)
+                base_decode(chunk.decode(), 64)
                 return True
             except Exception:
                 return False
@@ -532,7 +532,7 @@ class PSBTSigner:
         if self.base_encoding is not None:
             from .baseconv import base_encode
 
-            psbt_data = base_encode(psbt_data, self.base_encoding).decode()
+            psbt_data = base_encode(psbt_data, self.base_encoding)
 
         if self.ur_type == CRYPTO_PSBT:
             return (

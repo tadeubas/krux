@@ -24,17 +24,16 @@
 # the settings view
 # from .sd_card import SDHandler
 
-try:
-    import ujson as json
-except ImportError:
-    import json
-
+import ujson as json
 import os
 
 # Settings storage
-SETTINGS_FILENAME = "settings.json"
 SD_PATH = "sd"
 FLASH_PATH = "flash"
+
+# Specific storage filenames
+SETTINGS_FILENAME = "settings.json"
+MNEMONICS_FILE = "seeds.json"
 
 # Network settings
 MAIN_TXT = "main"

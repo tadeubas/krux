@@ -90,6 +90,8 @@ if args.sd:
 
 from kruxsim.mocks import uos_functions
 
+from kruxsim.mocks import ujson
+from kruxsim.mocks import urandom
 from kruxsim.mocks import usys
 from kruxsim.mocks import utime
 from kruxsim.mocks import fpioa_manager
@@ -114,6 +116,7 @@ from kruxsim.mocks import rotary
 from kruxsim.mocks import vfs
 from kruxsim.sequence import SequenceExecutor
 from kruxsim.mocks import uhashlib_hw
+from kruxsim.mocks import baseconv
 
 sequence_executor = None
 if args.sequence:

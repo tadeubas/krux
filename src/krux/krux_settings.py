@@ -53,13 +53,11 @@ DEFAULT_RX_PIN = (
     else 34
 )
 
-# Encription Versions
-PBKDF2_HMAC_ECB = 0
-PBKDF2_HMAC_CBC = 1
-
 THERMAL_ADAFRUIT_TXT = "thermal/adafruit"
 CNC_FILE_DRIVER = "cnc/file"
 CNC_GRBL_DRIVER = "cnc/grbl"
+CNC_HEAD_ROUTER = "router"
+CNC_HEAD_LASER = "laser"
 
 
 def t(slug):
@@ -198,6 +196,10 @@ class CNCSettings(SettingsNamespace):
     depth_per_pass = NumberSetting(float, "depth_per_pass", 0.03125, [0.0001, 10000])
     part_size = NumberSetting(float, "part_size", 3.5, [0.0001, 10000])
     border_padding = NumberSetting(float, "border_padding", 0.0625, [0.0001, 10000])
+    head_type = CategorySetting(
+        "head_type", CNC_HEAD_ROUTER, [CNC_HEAD_ROUTER, CNC_HEAD_LASER]
+    )
+    head_power = NumberSetting(int, "head_power", 1000, [0, 1000])
 
     def __init__(self):
         self.grbl = GRBLSettings()
@@ -215,6 +217,8 @@ class CNCSettings(SettingsNamespace):
             "depth_per_pass": t("Depth Per Pass"),
             "part_size": t("Part Size"),
             "border_padding": t("Border Padding"),
+            "head_type": t("Head type"),
+            "head_power": t("Power"),
             "grbl": "GRBL",
         }[attr]
 
@@ -379,15 +383,18 @@ class PersistSettings(SettingsNamespace):
 class EncryptionSettings(SettingsNamespace):
     """Encryption settings"""
 
-    AES_ECB_NAME = "AES-ECB"
-    AES_CBC_NAME = "AES-CBC"
-    VERSION_NAMES = {
-        PBKDF2_HMAC_ECB: AES_ECB_NAME,
-        PBKDF2_HMAC_CBC: AES_CBC_NAME,
+    import ucryptolib
+
+    # defined in krux.encryption.VERSIONS
+    MODE_NAMES = {
+        ucryptolib.MODE_ECB: "AES-ECB",
+        ucryptolib.MODE_CBC: "AES-CBC",
+        ucryptolib.MODE_CTR: "AES-CTR",
+        ucryptolib.MODE_GCM: "AES-GCM",
     }
     namespace = "settings.encryption"
-    version = CategorySetting("version", AES_ECB_NAME, list(VERSION_NAMES.values()))
-    pbkdf2_iterations = NumberSetting(int, "pbkdf2_iterations", 100000, [1, 500000])
+    version = CategorySetting("version", "AES-ECB", list(MODE_NAMES.values()))
+    pbkdf2_iterations = NumberSetting(int, "pbkdf2_iterations", 100000, [10000, 500000])
 
     def label(self, attr):
         """Returns a label for UI when given a setting name or namespace"""

@@ -43,11 +43,10 @@ from ..display import (
     FLASH_MSG_TIME,
     FONT_HEIGHT,
     FONT_WIDTH,
-    NARROW_SCREEN_WITH,
     STATUS_BAR_HEIGHT,
     BOTTOM_LINE,
 )
-from ..qr import to_qr_codes
+from ..qr import to_qr_codes, FORMAT_NONE
 from ..krux_settings import t, Settings
 from ..sd_card import SDHandler
 from ..kboard import kboard
@@ -55,9 +54,9 @@ from ..kboard import kboard
 MENU_CONTINUE = 0
 MENU_EXIT = 1
 MENU_SHUTDOWN = 2
+MENU_RESTART = 3
 
 ESC_KEY = 1
-FIXED_KEYS = 3  # 'More' key only appears when there are multiple keysets
 
 SHUTDOWN_WAIT_TIME = 300
 
@@ -228,18 +227,25 @@ class Page:
         if not buffer_title:
             self.ctx.display.draw_hcentered_text(buffer, offset_y)
 
-    def display_qr_codes(self, data, qr_format, title="", highlight_prefix=""):
+    def display_qr_codes(
+        self,
+        data,
+        qr_format=FORMAT_NONE,
+        title="",
+        offset_x=0,
+        offset_y=0,
+        width=0,
+        highlight_prefix="",
+    ):
         """Displays a QR code or an animated series of QR codes to the user, encoding them
         in the specified format
         """
-        done = False
-        i = 0
 
         # Precompute display-related values
         display_width = self.ctx.display.width()
         display_height = self.ctx.display.height()
-        is_portrait = display_height > display_width
-        qr_offset_val = self.ctx.display.qr_offset()
+        is_portrait = width != 0 or display_height > display_width
+        qr_offset_val = self.ctx.display.qr_offset(offset_y + width)
         qr_data_width = self.ctx.display.qr_data_width()
 
         self.ctx.display.clear()
@@ -271,20 +277,22 @@ class Page:
         code = None
         num_parts = 0
         btn = None
+        i = 0
+        done = False
         while not done:
             try:
                 code, num_parts = next(code_generator)
             except:
-                code_generator = to_qr_codes(
-                    data, self.ctx.display.qr_data_width(), qr_format
-                )
+                code_generator = to_qr_codes(data, qr_data_width, qr_format)
                 code, num_parts = next(code_generator)
 
             # Draw QR code
             if qr_foreground:
-                self.ctx.display.draw_qr_code(0, code, light_color=qr_foreground)
+                self.ctx.display.draw_qr_code(
+                    code, offset_x, offset_y, width, light_color=qr_foreground
+                )
             else:
-                self.ctx.display.draw_qr_code(0, code)
+                self.ctx.display.draw_qr_code(code, offset_x, offset_y, width)
 
             # Handle subtitle
             if subtitle_template and is_portrait:
@@ -369,11 +377,11 @@ class Page:
                         word,
                     )
 
-    def print_prompt(self, text):
+    def print_prompt(self, text, check_printer=True):
         """Prompts the user to print a QR code in the specified format
         if a printer is connected
         """
-        if not self.has_printer():
+        if not self.has_printer() and check_printer:
             return False
         self.ctx.display.clear()
         prompt_text = (text + "\n\n%s\n\n") % Settings().hardware.printer.driver
@@ -469,11 +477,18 @@ class Page:
     def fit_to_line(self, text, prefix="", fixed_chars=0, crop_middle=True):
         """Fits text with prefix plus fixed_chars at the beginning into one line,
         removing the central content and leaving the ends"""
-        usable_chars = self.ctx.display.usable_width() // FONT_WIDTH
-        if len(text) + len(prefix) <= usable_chars:
+        usable_chars = self.ctx.display.usable_pixels_in_line() // FONT_WIDTH
+        if len(prefix) + len(text) <= usable_chars:
             return prefix + text
+
+        if len(prefix) >= usable_chars - 4:
+            if len(prefix) <= usable_chars:
+                return prefix
+            text = prefix
+            prefix = ""
+            fixed_chars = 0
         if not crop_middle:
-            return "{}{}..".format(prefix, text[: usable_chars - 2])
+            return "{}{}..".format(prefix, text[: usable_chars - len(prefix) - 2])
         usable_chars -= len(prefix) + fixed_chars + 2
         half = usable_chars // 2
         return "{}{}..{}".format(prefix, text[: half + fixed_chars], text[-half:])
@@ -809,7 +824,7 @@ class Menu:
         """Draws wallet fingerprint or BIP85 child at top if wallet is loaded"""
         if self.ctx.is_logged_in():
             fingerprint = self.ctx.wallet.key.fingerprint_hex_str(True)
-            if self.ctx.display.width() > NARROW_SCREEN_WITH:
+            if not kboard.is_m5stickv:
                 self.ctx.display.draw_hcentered_text(
                     fingerprint,
                     STATUS_BAR_HEIGHT - FONT_HEIGHT - 1,
@@ -828,7 +843,7 @@ class Menu:
     def draw_network_indicator(self):
         """Draws test at top if testnet is enabled"""
         if self.ctx.is_logged_in() and self.ctx.wallet.key.network["name"] == "Testnet":
-            if self.ctx.display.width() > NARROW_SCREEN_WITH:
+            if not kboard.is_m5stickv:
                 self.ctx.display.draw_string(
                     12,
                     STATUS_BAR_HEIGHT - FONT_HEIGHT - 1,

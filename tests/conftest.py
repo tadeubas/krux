@@ -7,10 +7,15 @@ from .shared_mocks import (
     board_cube,
     board_m5stickv,
     board_wonder_mv,
+    board_yahboom,
     encode_to_string,
     encode,
     statvfs,
     pbkdf2_hmac_sha256_wrapper,
+    base32_decode,
+    base32_encode,
+    base43_decode,
+    base43_encode,
 )
 
 
@@ -50,7 +55,13 @@ def mp_modules(mocker, monkeypatch):
     monkeypatch.setitem(
         sys.modules,
         "ucryptolib",
-        mocker.MagicMock(aes=AES.new, MODE_ECB=AES.MODE_ECB, MODE_CBC=AES.MODE_CBC),
+        mocker.MagicMock(
+            aes=AES.new,
+            MODE_ECB=AES.MODE_ECB,
+            MODE_CBC=AES.MODE_CBC,
+            MODE_CTR=AES.MODE_CTR,
+            MODE_GCM=AES.MODE_GCM,
+        ),
     )
     monkeypatch.setitem(sys.modules, "shannon", mocker.MagicMock())
     monkeypatch.setattr(time, "sleep_ms", mocker.MagicMock(), raising=False)
@@ -70,6 +81,25 @@ def mp_modules(mocker, monkeypatch):
             sha256=hashlib.sha256,
         ),
     )
+    monkeypatch.setitem(
+        sys.modules,
+        "base32",
+        mocker.MagicMock(
+            decode=base32_decode,
+            encode=base32_encode,
+        ),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "base43",
+        mocker.MagicMock(
+            decode=base43_decode,
+            encode=base43_encode,
+        ),
+    )
+    import json
+
+    monkeypatch.setitem(sys.modules, "ujson", json)
     monkeypatch.setitem(sys.modules, "vfs", mocker.MagicMock())
 
 
@@ -107,13 +137,23 @@ def cube(monkeypatch, mp_modules):
 
 
 @pytest.fixture
+def yahboom(monkeypatch, mp_modules):
+    import sys
+
+    monkeypatch.setitem(sys.modules, "board", board_yahboom())
+    monkeypatch.setitem(sys.modules, "pmu", None)
+    reset_krux_modules()
+
+
+@pytest.fixture
 def wonder_mv(monkeypatch, mp_modules):
     import sys
 
     monkeypatch.setitem(sys.modules, "board", board_wonder_mv())
+    monkeypatch.setitem(sys.modules, "pmu", None)
     reset_krux_modules()
 
 
-@pytest.fixture(params=["amigo", "m5stickv", "dock", "cube"])
+@pytest.fixture(params=["amigo", "m5stickv", "dock", "cube", "yahboom", "wonder_mv"])
 def multiple_devices(request):
     return request.getfixturevalue(request.param)

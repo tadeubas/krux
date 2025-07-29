@@ -22,10 +22,7 @@
 # pylint: disable=W0102
 import time
 
-try:
-    import urandom as random
-except:
-    import random
+import urandom as random
 from binascii import hexlify
 from hashlib import sha256
 from embit import bip32, bip39
@@ -135,6 +132,9 @@ class Key:
             self.derivation = derivation
         self.account = self.root.derive(self.derivation).to_public()
 
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
+
     def xpub(self, version=None):
         """Returns the xpub representation of the extended master public key"""
         return self.account.to_base58(version)
@@ -234,7 +234,8 @@ class Key:
             return DER_MULTI % (MULTISIG_SCRIPT_PURPOSE, network["bip32"], account)
         if policy_type == TYPE_MINISCRIPT:
             return DER_MINISCRIPT % (MINISCRIPT_PURPOSE, network["bip32"], account)
-        raise ValueError("Invalid policy type")
+
+        raise ValueError("Invalid policy type: %s" % policy_type)
 
     @staticmethod
     def format_derivation(derivation, pretty=False):

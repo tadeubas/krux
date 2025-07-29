@@ -25,11 +25,12 @@ from . import (
     Page,
     Menu,
     MENU_CONTINUE,
-    ESC_KEY,
-    LETTERS,
-    UPPERCASE_LETTERS,
-    NUM_SPECIAL_1,
-    NUM_SPECIAL_2,
+    MENU_EXIT,
+    # ESC_KEY,
+    # LETTERS,
+    # UPPERCASE_LETTERS,
+    # NUM_SPECIAL_1,
+    # NUM_SPECIAL_2,
 )
 from .file_manager import SD_ROOT_PATH
 from ..format import generate_thousands_separator
@@ -38,6 +39,9 @@ from ..display import BOTTOM_PROMPT_LINE
 from ..krux_settings import t
 from ..qr import FORMAT_NONE
 import sys
+
+
+# TODO: re-enable "Create a QR Code" (and keypads ^^^) once encryption is possible w/o Datum Tool
 
 
 class Tools(Page):
@@ -53,8 +57,9 @@ class Tools(Page):
                 [
                     (t("Check SD Card"), self.sd_check),
                     (t("Load Krux app"), self.load_krux_app),
-                    (t("Print Test QR"), self.print_test),
-                    (t("Create QR Code"), self.create_qr),
+                    (t("Datum Tool"), self.datum_tool),
+                    (t("Device Tests"), self.device_tests),
+                    # (t("Create QR Code"), self.create_qr),
                     (t("Descriptor Addresses"), self.descriptor_addresses),
                     (t("Flash Tools"), self.flash_tools),
                     (t("Remove Mnemonic"), self.rm_stored_mnemonic),
@@ -145,34 +150,37 @@ class Tools(Page):
                 del encrypted_mnemonics
                 return ret
 
-    def print_test(self):
-        """Handler for the 'Print Test QR' menu item"""
-        title = t("Krux Printer Test QR")
-        self.display_qr_codes(title, FORMAT_NONE, title)
-        from .print_page import PrintPage
+    def datum_tool(self):
+        """Handler for the 'Datum Tool' menu item"""
+        import sys
+        from .datum_tool import DatumToolMenu
 
-        print_page = PrintPage(self.ctx)
-        print_page.print_qr(title, title=title)
+        while True:
+            if DatumToolMenu(self.ctx).run() == MENU_EXIT:
+                break
+
+        sys.modules.pop("krux.pages.datum_tool")
+        del sys.modules["krux.pages"].datum_tool
         return MENU_CONTINUE
 
-    def create_qr(self):
-        """Handler for the 'Create QR Code' menu item"""
-        if self.prompt(
-            t("Create QR code from text?"),
-            self.ctx.display.height() // 2,
-        ):
-            text = self.capture_from_keypad(
-                t("Text"), [LETTERS, UPPERCASE_LETTERS, NUM_SPECIAL_1, NUM_SPECIAL_2]
-            )
-            if text in ("", ESC_KEY):
-                return MENU_CONTINUE
-
-            from .qr_view import SeedQRView
-
-            title = t("Custom QR Code")
-            seed_qr_view = SeedQRView(self.ctx, data=text, title=title)
-            return seed_qr_view.display_qr(allow_export=True)
-        return MENU_CONTINUE
+    # def create_qr(self):
+    #    """Handler for the 'Create QR Code' menu item"""
+    #    if self.prompt(
+    #        t("Create QR code from text?"),
+    #        self.ctx.display.height() // 2,
+    #    ):
+    #        text = self.capture_from_keypad(
+    #            t("Text"), [LETTERS, UPPERCASE_LETTERS, NUM_SPECIAL_1, NUM_SPECIAL_2]
+    #        )
+    #        if text in ("", ESC_KEY):
+    #            return MENU_CONTINUE
+    #
+    #        from .qr_view import SeedQRView
+    #
+    #        title = t("Custom QR Code")
+    #        seed_qr_view = SeedQRView(self.ctx, data=text, title=title)
+    #        return seed_qr_view.display_qr(allow_export=True)
+    #    return MENU_CONTINUE
 
     def descriptor_addresses(self):
         """Handler for the 'Descriptor Addresses' menu item"""
@@ -185,3 +193,14 @@ class Tools(Page):
         if self.ctx.wallet.is_loaded():
             menu_result = Addresses(self.ctx).addresses_menu()
         return menu_result
+
+    def device_tests(self):
+        """Handler for the 'Device Tests' menu item"""
+        import sys
+        from .device_tests import DeviceTests
+
+        page = DeviceTests(self.ctx)
+        page.run()
+        sys.modules.pop("krux.pages.device_tests")
+        del sys.modules["krux.pages"].device_tests
+        return MENU_CONTINUE
