@@ -101,7 +101,7 @@ class Login(Page):
             ],
         )
         index, status = submenu.run_loop()
-        if index == len(submenu.menu) - 1:
+        if index == submenu.back_index:
             return MENU_CONTINUE
         return status
 
@@ -123,7 +123,7 @@ class Login(Page):
             ],
         )
         index, status = submenu.run_loop()
-        if index == len(submenu.menu) - 1:
+        if index == submenu.back_index:
             return MENU_CONTINUE
         return status
 
@@ -139,7 +139,7 @@ class Login(Page):
             ],
         )
         index, status = submenu.run_loop()
-        if index == len(submenu.menu) - 1:
+        if index == submenu.back_index:
             return MENU_CONTINUE
         return status
 
@@ -165,7 +165,7 @@ class Login(Page):
             ],
         )
         index, status = submenu.run_loop()
-        if index == len(submenu.menu) - 1:
+        if index == submenu.back_index:
             return MENU_CONTINUE
         return status
 
@@ -362,7 +362,7 @@ class Login(Page):
             )
 
             index, _ = submenu.run_loop()
-            if index == len(submenu.menu) - 1:
+            if index == submenu.back_index:
                 if self.prompt(t("Are you sure?"), self.ctx.display.height() // 2):
                     del key
                     return MENU_CONTINUE
@@ -658,7 +658,7 @@ class Login(Page):
             ],
         )
         index, status = submenu.run_loop()
-        if index == len(submenu.menu) - 1:
+        if index == submenu.back_index:
             return MENU_CONTINUE
         return status
 

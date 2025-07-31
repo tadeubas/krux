@@ -111,7 +111,7 @@ class FileManager(Page):
                 index, status = submenu.run_loop()
 
                 # selected "Back"
-                if index == len(items) - 1:
+                if index == submenu.back_index:
                     return ""
                 # selected ".."
                 if index == 0 and path != SD_ROOT_PATH:
