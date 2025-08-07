@@ -189,7 +189,7 @@ def check_signature(pubkey, sig, file_hash):
 
     try:
         # Parse, serialize, and reparse to ensure signature is compact prior to verification
-        sig = ec.Signature.parse(ec.Signature.parse(sig).serialize())
+        sig = ec.Signature.parse(sig)
         if not pubkey.verify(sig, file_hash):
             return False
     except:
