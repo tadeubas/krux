@@ -40,6 +40,7 @@ from ..display import FONT_WIDTH, FONT_HEIGHT, DEFAULT_PADDING, TOTAL_LINES
 from ..krux_settings import t
 from ..input import (
     BUTTON_ENTER,
+    BUTTON_TOUCH,
     BUTTON_PAGE,
     FAST_FORWARD,
     SWIPE_LEFT,
@@ -608,7 +609,7 @@ class DatumTool(Page):
                 offset_y += FONT_HEIGHT
 
             btn = self.ctx.input.wait_for_button()
-            if btn == BUTTON_ENTER:
+            if btn in (BUTTON_ENTER, BUTTON_TOUCH):
                 break
             if btn in (BUTTON_PAGE, FAST_FORWARD, SWIPE_UP, SWIPE_LEFT):
                 page = (page + 1) % len(pages)
