@@ -33,6 +33,7 @@ from ...display import (
     FONT_HEIGHT,
     FONT_WIDTH,
     MINIMAL_PADDING,
+    MAX_PROMPT_TEXT_LENGTH,
 )
 from ...krux_settings import t
 from ...qr import FORMAT_NONE, FORMAT_PMOFN
@@ -43,6 +44,7 @@ from ...sd_card import (
 from ...themes import theme
 from ...key import FINGERPRINT_SYMBOL, DERIVATION_PATH_SYMBOL, P2TR
 from ...kboard import kboard
+from ...settings import ELLIPSIS
 
 
 class WalletDescriptor(Page):
@@ -111,11 +113,15 @@ class WalletDescriptor(Page):
                     file_content = wallet_data
                 else:
                     file_content = self.ctx.wallet.descriptor.to_string()
+
+                description = title + ": " + file_content[:MAX_PROMPT_TEXT_LENGTH]
+                if len(file_content) > MAX_PROMPT_TEXT_LENGTH:
+                    description += ELLIPSIS
                 self.ctx.wallet.persisted = save_page.save_file(
                     file_content,
                     self.ctx.wallet.label,
                     self.ctx.wallet.label,
-                    title + ":",
+                    description,
                     DESCRIPTOR_FILE_EXTENSION,
                     save_as_binary=is_encrypted,
                 )

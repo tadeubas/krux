@@ -20,7 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from ...display import FONT_HEIGHT
+from ...display import FONT_HEIGHT, MAX_PROMPT_TEXT_LENGTH
 from ...krux_settings import t
 from .. import (
     Page,
@@ -30,6 +30,7 @@ from .. import (
 )
 from ...sd_card import PUBKEY_FILE_EXTENSION
 from ...key import P2SH_P2WPKH, P2SH_P2WSH, P2WPKH, P2WSH
+from ...settings import ELLIPSIS
 
 # to start xpub value without the xpub/zpub/ypub prefix
 WALLET_XPUB_START = 4
@@ -49,11 +50,14 @@ class PubkeyView(Page):
             title = self.ctx.wallet.key.account_pubkey_str(version)[
                 :WALLET_XPUB_START
             ].upper()
+            description = title + ": " + xpub[:MAX_PROMPT_TEXT_LENGTH]
+            if len(xpub) > MAX_PROMPT_TEXT_LENGTH:
+                description += ELLIPSIS
             save_page.save_file(
                 xpub,
                 title,
                 title,
-                title + ":",
+                description,
                 PUBKEY_FILE_EXTENSION,
                 save_as_binary=False,
             )

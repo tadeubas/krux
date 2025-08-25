@@ -282,12 +282,13 @@ def test_public_key_save_text(
 
         clear_calls.append(mocker.call())
         if case[2]:  # Show XPUB
+            data = ctx.wallet.key.key_expression(None)
             sd_card_save_calls.append(
                 mocker.call(
-                    ctx.wallet.key.key_expression(None),
+                    data,
                     "XPUB",
                     "XPUB",
-                    "XPUB:",
+                    "XPUB: " + data,
                     ".pub",
                     save_as_binary=False,
                 )
@@ -295,12 +296,13 @@ def test_public_key_save_text(
 
         if case[3]:  # Show ZPUB
             version = "Zpub" if ctx.wallet.key.policy_type == TYPE_MULTISIG else "zpub"
+            data = ctx.wallet.key.key_expression(ctx.wallet.key.network[version])
             sd_card_save_calls.append(
                 mocker.call(
-                    ctx.wallet.key.key_expression(ctx.wallet.key.network[version]),
+                    data,
                     "ZPUB",
                     "ZPUB",
-                    "ZPUB:",
+                    "ZPUB: " + data,
                     ".pub",
                     save_as_binary=False,
                 )
@@ -308,12 +310,13 @@ def test_public_key_save_text(
 
         if case[4]:  # Show YPUB
             version = "Ypub" if ctx.wallet.key.policy_type == TYPE_MULTISIG else "ypub"
+            data = ctx.wallet.key.key_expression(ctx.wallet.key.network[version])
             sd_card_save_calls.append(
                 mocker.call(
-                    ctx.wallet.key.key_expression(ctx.wallet.key.network[version]),
+                    data,
                     "YPUB",
                     "YPUB",
-                    "YPUB:",
+                    "YPUB: " + data,
                     ".pub",
                     save_as_binary=False,
                 )

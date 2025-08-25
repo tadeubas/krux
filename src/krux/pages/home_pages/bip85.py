@@ -93,7 +93,7 @@ class Bip85(Page):
         """Export BIP85 base64 password as QR"""
         self.display_qr_codes(code, FORMAT_NONE, title=title)
 
-    def _save_b64_pwd_to_sd(self, info):
+    def _save_b64_pwd_to_sd(self, info, password):
         from ..file_operations import SaveFile
 
         save_page = SaveFile(self.ctx)
@@ -103,7 +103,7 @@ class Bip85(Page):
             info,
             file_name,
             file_name,
-            title + ":",
+            title + ": " + password,
             B64_FILE_EXTENSION,
             save_as_binary=False,
         )
@@ -152,7 +152,7 @@ class Bip85(Page):
                     (
                         None
                         if not self.has_sd_card()
-                        else lambda: self._save_b64_pwd_to_sd(info)
+                        else lambda: self._save_b64_pwd_to_sd(info, password)
                     ),
                 ),
             ]

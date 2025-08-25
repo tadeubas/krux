@@ -39,10 +39,13 @@ from .encryption_ui import (
 from ..display import FONT_WIDTH, FONT_HEIGHT, DEFAULT_PADDING, TOTAL_LINES
 from ..krux_settings import t
 from ..input import (
+    BUTTON_ENTER,
     BUTTON_PAGE,
+    FAST_FORWARD,
     SWIPE_LEFT,
     SWIPE_UP,
     BUTTON_PAGE_PREV,
+    FAST_BACKWARD,
     SWIPE_RIGHT,
     SWIPE_DOWN,
 )
@@ -605,12 +608,12 @@ class DatumTool(Page):
                 offset_y += FONT_HEIGHT
 
             btn = self.ctx.input.wait_for_button()
-            if btn in (BUTTON_PAGE, SWIPE_UP, SWIPE_LEFT):
-                page = (page + 1) % len(pages)
-            elif btn in (BUTTON_PAGE_PREV, SWIPE_DOWN, SWIPE_RIGHT):
-                page = (page - 1) % len(pages)
-            else:
+            if btn == BUTTON_ENTER:
                 break
+            if btn in (BUTTON_PAGE, FAST_FORWARD, SWIPE_UP, SWIPE_LEFT):
+                page = (page + 1) % len(pages)
+            elif btn in (BUTTON_PAGE_PREV, FAST_BACKWARD, SWIPE_DOWN, SWIPE_RIGHT):
+                page = (page - 1) % len(pages)
 
     def _analyze_contents(self):
         """

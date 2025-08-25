@@ -50,6 +50,8 @@ FLASH_MSG_TIME = 2000
 
 M5STICKV_WIDTH = 135
 
+MAX_PROMPT_TEXT_LENGTH = 150
+
 # Splash will use horizontally-centered text plots. Uses Thin spaces to help with alignment
 SPLASH = [
     "██" + THIN_SPACE * 3,

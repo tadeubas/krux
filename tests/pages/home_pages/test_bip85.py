@@ -415,8 +415,14 @@ def test_bip85_bip39_mnemonic_derivation_m5(mocker, m5stickv, tdata):
 def test_bip85_base64_password_derivation(mocker, amigo, tdata):
     from krux.pages.home_pages.bip85 import Bip85
     from krux.wallet import Wallet
-    from krux.input import BUTTON_ENTER, BUTTON_PAGE, BUTTON_PAGE_PREV
+    from krux.input import (
+        BUTTON_ENTER,
+        BUTTON_PAGE,
+        BUTTON_PAGE_PREV,
+        ACTIVATING_BUTTONS,
+    )
     from embit import bip32
+    from unittest.mock import patch, mock_open
 
     cases = [
         # case
@@ -504,7 +510,7 @@ def test_bip85_base64_password_derivation(mocker, amigo, tdata):
             ],
             None,
         ),
-        # 4 - Print QR code
+        # 4 - See QR code
         (
             tdata.SINGLESIG_12_WORD_KEY,
             [
@@ -516,9 +522,11 @@ def test_bip85_base64_password_derivation(mocker, amigo, tdata):
                 # Keep length = 21
                 BUTTON_PAGE_PREV,  # Move to "Go"
                 BUTTON_ENTER,  # Go
-                # Print QR code
-                BUTTON_ENTER,  # Print QR code
+                # QR code
+                BUTTON_ENTER,  # Show QR code
                 BUTTON_ENTER,  # Back main menu
+                # Since Amigo is touchscreen, when this menu is opened from another non-menu page, it appears without any item highlighted. We need a button press to trigger the highlight (switching the menu state from touch to button control). After the current position is highlighted, navigation with buttons works normally.
+                BUTTON_ENTER,  # just for highlight the menu (could be PAGE or PAGE_PREV)
                 BUTTON_PAGE_PREV,  # Move to "< Back"
                 BUTTON_ENTER,  # Leave password
                 BUTTON_PAGE,  # Move to "< Back"
@@ -542,7 +550,7 @@ def test_bip85_base64_password_derivation(mocker, amigo, tdata):
                 # Save to SD card
                 BUTTON_PAGE,  # Move to "Save to SD card"
                 BUTTON_ENTER,  # Press to save
-                BUTTON_ENTER,  # Confirm
+                BUTTON_ENTER,  # Confirm prompt
                 # Confirm file name
                 BUTTON_PAGE_PREV,  # Move to "Go"
                 BUTTON_ENTER,  # Save
@@ -590,8 +598,10 @@ def test_bip85_base64_password_derivation(mocker, amigo, tdata):
             None,  # No password info generated
         ),
     ]
-    mock_save_file = mocker.patch(
-        "krux.pages.file_operations.SaveFile.save_file",
+    #  mock SDHandler listdir call
+    mocker.patch(
+        "os.listdir",
+        new=mocker.MagicMock(return_value=["somefile", "otherfile"]),
     )
     case_num = 0
     for case in cases:
@@ -604,11 +614,31 @@ def test_bip85_base64_password_derivation(mocker, amigo, tdata):
         else:
             wallet = Wallet(case[0])
         ctx = create_ctx(mocker, case[1], wallet)
+
+        # we need to update ctx.input.buttons_active because display_qr_codes() will set it to false
+        if case_num == 4:
+            seq_iter = iter(case[1])
+
+            def _side_effect(*args, **kwargs):
+                btn = next(seq_iter)
+                if ctx.input.buttons_active == False:
+                    ctx.input.buttons_active = True
+                    return ACTIVATING_BUTTONS  # return activating (ignore pressed btn)
+                return btn
+
+            ctx.input.wait_for_button = mocker.MagicMock(side_effect=_side_effect)
+
         mocker.spy(ctx.display, "draw_hcentered_text")
         bip85_ui = Bip85(ctx)
         mocker.patch.object(bip85_ui, "has_sd_card", new=lambda: True)
         mocker.spy(bip85_ui, "_base64_password_qr")
-        bip85_ui.export()
+        with patch(
+            "builtins.open", mock_open(read_data="bip password")
+        ) as mock_save_file:
+            bip85_ui.export()
+
+            if len(case) > 4 and case[4]:
+                mock_save_file.assert_called_once_with("/sd/BIP85_password.txt", "w")
 
         assert ctx.input.wait_for_button.call_count == len(case[1])
         if case[2]:
@@ -620,13 +650,4 @@ def test_bip85_base64_password_derivation(mocker, amigo, tdata):
                 [mocker.call(case[3], "Base64 Password")]
             )
 
-        if len(case) > 4 and case[4]:
-            mock_save_file.assert_called_once_with(
-                case[2],
-                "BIP85_password",
-                "BIP85_password",
-                "BIP85 Password:",
-                ".txt",
-                save_as_binary=False,
-            )
         case_num += 1
