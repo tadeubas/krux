@@ -525,8 +525,6 @@ def test_bip85_base64_password_derivation(mocker, amigo, tdata):
                 # QR code
                 BUTTON_ENTER,  # Show QR code
                 BUTTON_ENTER,  # Back main menu
-                # Since Amigo is touchscreen, when this menu is opened from another non-menu page, it appears without any item highlighted. We need a button press to trigger the highlight (switching the menu state from touch to button control). After the current position is highlighted, navigation with buttons works normally.
-                BUTTON_ENTER,  # just for highlight the menu (could be PAGE or PAGE_PREV)
                 BUTTON_PAGE_PREV,  # Move to "< Back"
                 BUTTON_ENTER,  # Leave password
                 BUTTON_PAGE,  # Move to "< Back"
@@ -614,19 +612,6 @@ def test_bip85_base64_password_derivation(mocker, amigo, tdata):
         else:
             wallet = Wallet(case[0])
         ctx = create_ctx(mocker, case[1], wallet)
-
-        # we need to update ctx.input.buttons_active because display_qr_codes() will set it to false
-        if case_num == 4:
-            seq_iter = iter(case[1])
-
-            def _side_effect(*args, **kwargs):
-                btn = next(seq_iter)
-                if ctx.input.buttons_active == False:
-                    ctx.input.buttons_active = True
-                    return ACTIVATING_BUTTONS  # return activating (ignore pressed btn)
-                return btn
-
-            ctx.input.wait_for_button = mocker.MagicMock(side_effect=_side_effect)
 
         mocker.spy(ctx.display, "draw_hcentered_text")
         bip85_ui = Bip85(ctx)

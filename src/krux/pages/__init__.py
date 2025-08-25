@@ -717,9 +717,13 @@ class Menu:
                         # which may be a different index than before we moved backward
                         selected_item_index = len(self.menu_view) - 1
                 elif btn == SWIPE_UP:
+                    selected_item_index = 0
                     self.menu_view.move_forward()
                 elif btn == SWIPE_DOWN:
                     self.menu_view.move_backward()
+                    # Update selected item index to be the last viewable item,
+                    # which may be a different index than before we moved backward
+                    selected_item_index = len(self.menu_view) - 1
                 elif btn is None and self.menu_offset == STATUS_BAR_HEIGHT:
                     # Activates screensaver if there's no info_box(other things draw on the screen)
                     self.screensaver()

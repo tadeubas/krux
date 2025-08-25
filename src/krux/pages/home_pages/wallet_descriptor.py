@@ -44,7 +44,7 @@ from ...sd_card import (
 from ...themes import theme
 from ...key import FINGERPRINT_SYMBOL, DERIVATION_PATH_SYMBOL, P2TR
 from ...kboard import kboard
-from ...settings import ELLIPSIS
+from ...settings import THIN_SPACE, ELLIPSIS
 
 
 class WalletDescriptor(Page):
@@ -235,7 +235,6 @@ class WalletDescriptor(Page):
 
     def display_loading_wallet(self, wallet):
         """Displays wallet descriptor attributes while loading"""
-        from ...settings import THIN_SPACE
 
         def draw_header():
             nonlocal offset_y
@@ -349,6 +348,6 @@ class WalletDescriptor(Page):
                         )
                 offset_y += FONT_HEIGHT
                 if offset_y >= BOTTOM_PROMPT_LINE:
-                    self.ctx.display.draw_hcentered_text("...", offset_y)
+                    self.ctx.display.draw_hcentered_text(ELLIPSIS, offset_y)
                     self.ctx.input.wait_for_button()
                     draw_header()
