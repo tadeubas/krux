@@ -49,6 +49,8 @@ A new advanced utility for working with files, QRs, and manual text input. It su
 - Passphrase and key now display their length after entry to reduce user mistakes.
 - Saving encrypted mnemonic now prompts whether to use the fingerprint as ID.
 - Optimized device's board value checks.
+- Enhance save-to-SD prompts for Wallet descriptor, XPUB, and BIP85 passwords.
+- Ellipsis now use a single character to optimize text space.
 - Added QR Code to About screen.
 - Fixed camera not rotating on Yahboom or WonderMV with flipped orientation.
 - Restart prompt for theme settings now appears only when changes are made.
