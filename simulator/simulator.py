@@ -30,7 +30,7 @@ exec_folder = 'simulator'
 current_dir = os.getcwd()
 
 # check if is executing in exec_folder, if not, try to change to exec_folder
-if current_dir[len(current_dir) - len(exec_folder):] not in exec_folder:
+if not current_dir.endswith(exec_folder):
     os.chdir(exec_folder)
 
 parser = argparse.ArgumentParser()
@@ -111,6 +111,7 @@ from kruxsim.mocks import qrcode
 from kruxsim.mocks import sensor
 from kruxsim.mocks import shannon
 from kruxsim.mocks import ft6x36
+from kruxsim.mocks import gt911
 from kruxsim.mocks import buttons
 from kruxsim.mocks import rotary
 from kruxsim.mocks import vfs
@@ -157,16 +158,24 @@ pg.display.set_caption("Krux Simulator")
 
 device_image = devices.load_image(args.device)
 
-# Scale screenshots for docs
+# Screenshots for docs
+SCREENSHOTS_DIR = "screenshots"
+
+if not os.path.exists(SCREENSHOTS_DIR):
+    os.makedirs(SCREENSHOTS_DIR)
+
+# scale imgs
 AMIGO_SIZE = (300, 504)
 M5STICKV_SIZE = (250, 494)
 DOCK_SIZE = (302, 516)
 YAHBOOM_SIZE = (312, 440)
 CUBE_SIZE = (400, 424)
 WONDER_MV_SIZE = (304, 440)
+TZT_SIZE = (314, 442)
 
 # Handle screenshots scale and alpha bg
 # When exporting the mask from GIMP uncheck "Save info about transparent pixels color"
+# Use --no-screenshot-scale until fix mask size and devices.screenshot_rect()
 device_screenshot_size = AMIGO_SIZE
 mask_img = pg.image.load(
     os.path.join("assets", "maixpy_amigo_mask.png")
@@ -196,6 +205,17 @@ elif (args.device == devices.WONDER_MV):
     mask_img = pg.image.load(
         os.path.join("assets", "maixpy_wonder_mv_mask.png")
         ).convert_alpha()
+elif (args.device == devices.TZT):
+    device_screenshot_size = TZT_SIZE
+    mask_img = pg.image.load(
+        os.path.join("assets", "maixpy_tzt_mask.png")
+        ).convert_alpha()
+# TODO: WONDER_K IMG
+# elif (args.device == devices.WONDER_K):
+#     device_screenshot_size = WONDER_K_SIZE
+#     mask_img = pg.image.load(
+#         os.path.join("assets", "maixpy_wonder_k_mask.png")
+#         ).convert_alpha()
     
 # Handle screenshots filename suffix when scaled
 from krux.krux_settings import Settings
@@ -243,6 +263,16 @@ def update_screen():
 
     pg.display.flip()
 
+def screenshot(filename):
+    sub = screen.subsurface(devices.screenshot_rect(args.device)).convert_alpha()
+    sub.blit(mask_img, sub.get_rect(), None, pg.BLEND_RGBA_SUB)
+    if (args.screenshot_scale):
+        sub = pg.transform.smoothscale(sub, device_screenshot_size)
+    pg.image.save(
+        sub, os.path.join(SCREENSHOTS_DIR, filename.replace(".png", screenshot_suffix + ".png"))
+    )
+
+import time
 
 try:
     clock = pg.time.Clock()
@@ -259,17 +289,7 @@ try:
                 shutdown()
             elif event.type >= pg.USEREVENT:
                 if event.type == events.SCREENSHOT_EVENT:
-                    SCREENSHOTS_DIR = "screenshots"
-                    if not os.path.exists(SCREENSHOTS_DIR):
-                        os.makedirs(SCREENSHOTS_DIR)
-
-                    sub = screen.subsurface(devices.screenshot_rect(args.device)).convert_alpha()
-                    sub.blit(mask_img, sub.get_rect(), None, pg.BLEND_RGBA_SUB)
-                    if (args.screenshot_scale):
-                        sub = pg.transform.smoothscale(sub, device_screenshot_size)
-                    pg.image.save(
-                        sub, os.path.join(SCREENSHOTS_DIR, event.dict["filename"].replace(".png", screenshot_suffix + ".png"))
-                    )
+                    screenshot(event.dict["filename"])
                 else:
                     event.dict["f"]()
                     update_screen()
@@ -280,8 +300,14 @@ try:
                     buttons.buttons_control.page_event_flag = True
                 if event.key == pg.K_UP:
                     buttons.buttons_control.page_prev_event_flag = True
+                # Press key 's' or 'p' to instant screenshot
+                if event.key == pg.K_s or event.key == pg.K_p:
+                    screenshot("%s-%s.png" % (args.device, time.strftime('%d%m%y_%H_%M_%S')))
             if event.type == pg.MOUSEBUTTONDOWN:
-                ft6x36.touch_control.trigger_event()
+                if args.device == devices.WONDER_K:
+                    gt911.touch_control.trigger_event()
+                else:
+                    ft6x36.touch_control.trigger_event()
             if event.type == pg.ACTIVEEVENT and event.gain:
                 pg.display.flip()
 

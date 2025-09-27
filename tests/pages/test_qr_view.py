@@ -101,7 +101,7 @@ def test_init_qr_view_background_white(amigo, mocker, mocker_theme_background_wh
 
 
 def test_load_qr_no_title(mocker, amigo):
-    from krux.input import SWIPE_DOWN
+    from krux.input import BUTTON_TOUCH
     from krux.pages import MENU_CONTINUE
     from krux.pages.qr_view import SeedQRView
 
@@ -116,7 +116,7 @@ def test_load_qr_no_title(mocker, amigo):
     # UI methods like wait_for_button,
     # draw_hcentered_text, draw_grided_qr, etc..
     mocker.patch.object(qr_view, "draw_grided_qr")
-    mocker.patch.object(qr_view.ctx.input, "wait_for_button", return_value=SWIPE_DOWN)
+    mocker.patch.object(qr_view.ctx.input, "wait_for_button", return_value=BUTTON_TOUCH)
     mocker.patch.object(qr_view.ctx.display, "height", return_value=240)
     mocker.patch.object(qr_view.ctx.display, "width", return_value=240)
     mocker.patch.object(qr_view.ctx.display, "qr_offset", return_value=10)
@@ -130,7 +130,7 @@ def test_load_qr_no_title(mocker, amigo):
 
 
 def test_display_qr_toggle_brightness(amigo, mocker):
-    from krux.input import BUTTON_PAGE, SWIPE_DOWN
+    from krux.input import BUTTON_PAGE, BUTTON_TOUCH
     from krux.pages import MENU_CONTINUE
     from krux.pages.qr_view import SeedQRView
     from krux.themes import DARKGREY, WHITE
@@ -143,7 +143,7 @@ def test_display_qr_toggle_brightness(amigo, mocker):
     ctx.input = mocker.Mock()
     ctx.input.wait_for_button.side_effect = [
         BUTTON_PAGE,
-        SWIPE_DOWN,
+        BUTTON_TOUCH,
     ]
 
     ctx.display = mocker.Mock()
@@ -324,6 +324,7 @@ def test_save_pbm_image(amigo, mocker):
         mock_write_binary.assert_called_once_with(
             TEST_TITLE + PBM_IMAGE_EXTENSION, PBM_TEST_CODE_BINARY_QR
         )
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
 
 
 def test_save_bmp_image(amigo, mocker):
@@ -350,20 +351,15 @@ def test_save_bmp_image(amigo, mocker):
     sys.modules["image"].Image.return_value.save.assert_called_once_with(
         "/sd/" + TEST_TITLE + BMP_IMAGE_EXTENSION
     )
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
 
 
 def test_save_bmp_image_no_sd_card(amigo, mocker):
     from krux.pages.qr_view import SeedQRView
-    from krux.input import BUTTON_ENTER, BUTTON_PAGE_PREV
-
-    BTN_SEQUENCE = [
-        BUTTON_PAGE_PREV,  # move to "Back to Menu"
-        BUTTON_ENTER,  # confirm
-    ]
 
     flash_text = mocker.spy(SeedQRView, "flash_text")
 
-    ctx = create_ctx(mocker, BTN_SEQUENCE)
+    ctx = create_ctx(mocker, [])
 
     qr_viewer = SeedQRView(ctx, data=TEST_QR_CODE, title="Test QR Code")
     qr_viewer.save_bmp_image(TEST_TITLE, TEST_DATA_QR_SIZE_FRAMED * 2)
@@ -371,16 +367,10 @@ def test_save_bmp_image_no_sd_card(amigo, mocker):
 
 
 def test_save_bmp_image_esc_key(amigo, mocker, mocker_save_file_esc):
-    from krux.input import BUTTON_ENTER, BUTTON_PAGE_PREV
     from krux.pages.qr_view import SeedQRView
     from krux.sd_card import BMP_IMAGE_EXTENSION
 
-    BTN_SEQUENCE = [
-        BUTTON_PAGE_PREV,  # move to "Back to Menu"
-        BUTTON_ENTER,  # confirm
-    ]
-
-    ctx = create_ctx(mocker, BTN_SEQUENCE)
+    ctx = create_ctx(mocker, [])
 
     #  mock SDHandler listdir call
     mocker.patch(
@@ -398,18 +388,12 @@ def test_save_bmp_image_esc_key(amigo, mocker, mocker_save_file_esc):
 
 def test_save_svg_image(amigo, mocker, mocker_sd_card_svg):
 
-    from krux.input import BUTTON_ENTER, BUTTON_PAGE_PREV
     from krux.pages.qr_view import SeedQRView
     from krux.sd_card import SVG_IMAGE_EXTENSION
 
     savefile_mock, svg_content = mocker_sd_card_svg
 
-    BTN_SEQUENCE = [
-        BUTTON_PAGE_PREV,  # move to "Back to Menu"
-        BUTTON_ENTER,  # confirm
-    ]
-
-    ctx = create_ctx(mocker, BTN_SEQUENCE)
+    ctx = create_ctx(mocker, [])
 
     qr_viewer = SeedQRView(ctx, data=TEST_QR_CODE, title="Test QR Code")
     qr_viewer.save_svg_image(TEST_TITLE)

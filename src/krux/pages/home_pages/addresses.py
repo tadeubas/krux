@@ -83,9 +83,9 @@ class Addresses(Page):
             return MENU_CONTINUE
 
         loading_txt = (
-            t("Loading change addresses..")
+            t("Loading change addresses…")
             if addr_type == 1
-            else t("Loading receive addresses..")
+            else t("Loading receive addresses…")
         )
         max_addresses = self.ctx.display.max_menu_lines() - 3
         address_index = 0
@@ -94,7 +94,7 @@ class Addresses(Page):
             if address_index >= max_addresses:
                 items.append(
                     (
-                        "%d..%d" % (address_index - max_addresses, address_index - 1),
+                        "%d…%d" % (address_index - max_addresses, address_index - 1),
                         lambda: MENU_EXIT,
                     )
                 )
@@ -119,7 +119,7 @@ class Addresses(Page):
 
             items.append(
                 (
-                    "%d..%d" % (address_index, address_index + max_addresses - 1),
+                    "%d…%d" % (address_index, address_index + max_addresses - 1),
                     lambda: MENU_EXIT,
                 )
             )
@@ -127,13 +127,18 @@ class Addresses(Page):
             submenu = Menu(self.ctx, items)
             stay_on_this_addr_menu = True
             while stay_on_this_addr_menu:
-                index, _ = submenu.run_loop()
+                next_index = len(submenu.menu) - 2
+                prev_index = 0 if address_index > max_addresses else -1
+                index, _ = submenu.run_loop(
+                    swipe_up_fnc=lambda: (next_index, MENU_EXIT),
+                    swipe_down_fnc=lambda: (prev_index, MENU_EXIT),
+                )
 
                 if index == submenu.back_index:  # Back
                     del submenu, items
                     gc.collect()
                     return MENU_CONTINUE
-                if index == len(submenu.menu) - 2:  # Next
+                if index == next_index:  # Next
                     stay_on_this_addr_menu = False
                 if index == 0 and address_index > max_addresses:  # Prev
                     stay_on_this_addr_menu = False
@@ -229,7 +234,7 @@ class Addresses(Page):
             return
 
         self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(t("Processing.."))
+        self.ctx.display.draw_centered_text(t("Processing…"))
 
         try:
             with SDHandler():
@@ -244,13 +249,13 @@ class Addresses(Page):
                         if i % SCAN_ADDRESS_LIMIT == 0:
                             self.ctx.display.clear()
                             self.ctx.display.draw_centered_text(
-                                t("Processing..")
+                                t("Processing…")
                                 + "\n\n%d%%" % int((i - start_address) / quantity * 100)
                             )
                             wdt.feed()
 
                 self.flash_text(
-                    t("Saved to SD card:") + "\n%s" % filename,
+                    t("Saved to SD card:") + "\n\n%s" % filename,
                     highlight_prefix=":",
                 )
         except OSError:
@@ -293,7 +298,11 @@ class Addresses(Page):
 
         try:
             data = decrypt_kef(self.ctx, data).decode()
-        except:
+        except KeyError:
+            self.flash_error(t("Failed to decrypt"))
+            return MENU_CONTINUE
+        except ValueError:
+            # ValueError=not KEF or declined to decrypt
             pass
 
         addr = None
@@ -315,7 +324,7 @@ class Addresses(Page):
             ):
                 return MENU_CONTINUE
 
-            checking_match_txt = t("Verifying..") + " " + t("%d to %d")
+            checking_match_txt = t("Verifying…") + " " + t("%d to %d")
             checked_no_match_txt = t("Checked %d addresses with no matches.")
             is_valid_txt = "%s\n\n" + t("is a valid address!")
             not_found_txt = "%s\n\n" + t("was NOT FOUND in the first %d addresses")

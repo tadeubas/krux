@@ -146,6 +146,8 @@ def test_load_key_from_qr_code(m5stickv, mocker):
     key = key_generator.encryption_key()
     assert key == "short text"
 
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
+
 
 def test_encrypt_cbc_sd_ui(m5stickv, mocker, mock_file_operations):
     from krux.wallet import Wallet
@@ -245,7 +247,7 @@ def test_encrypt_save_error(m5stickv, mocker, mock_file_operations):
         mocker.MagicMock(return_value=TEST_KEY),
     )
     mocker.patch(
-        "krux.encryption.MnemonicStorage.store_encrypted",
+        "krux.encryption.MnemonicStorage.store_encrypted_kef",
         mocker.MagicMock(return_value=False),
     )
     storage_ui.encrypt_menu()
@@ -271,6 +273,7 @@ def test_encrypt_to_qrcode_ecb_ui(m5stickv, mocker):
         + [BUTTON_ENTER]  # Yes, use fingerprint as ID
         # QR view is mocked here, no press needed
     )
+    mocker.patch("time.ticks_ms", return_value=0)  # tick_ms affects random delta
     ctx = create_ctx(mocker, BTN_SEQUENCE)
     ctx.wallet = Wallet(Key(ECB_WORDS, TYPE_SINGLESIG, NETWORKS["main"]))
     ctx.printer = None
@@ -309,6 +312,7 @@ def test_encrypt_to_qrcode_cbc_ui(m5stickv, mocker):
         + [BUTTON_ENTER]  # Yes, use fingerprint as ID
         # QR view is mocked here, no press needed
     )
+    mocker.patch("time.ticks_ms", return_value=0)  # tick_ms affects random delta
     ctx = create_ctx(mocker, BTN_SEQUENCE)
     ctx.wallet = Wallet(Key(CBC_WORDS, TYPE_SINGLESIG, NETWORKS["main"]))
     ctx.printer = None
@@ -414,7 +418,7 @@ def test_encrypted_qr_code_mode_and_density(amigo, mocker):
             data = called_kwargs.get("data")
             mode = "binary"
             if isinstance(data, str):
-                if data.isnumeric():
+                if data.isdigit():
                     mode = "numeric"
                 elif is_qr_alphanumeric(data):
                     mode = "alphanumeric"
@@ -461,6 +465,8 @@ def test_load_encrypted_from_flash(m5stickv, mocker):
         words = encrypted_mnemonics.load_from_storage()
     assert words == ECB_WORDS.split()
 
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
+
 
 def test_load_encrypted_from_sd(m5stickv, mocker, mock_file_operations):
     from krux.input import BUTTON_ENTER, BUTTON_PAGE
@@ -476,6 +482,8 @@ def test_load_encrypted_from_sd(m5stickv, mocker, mock_file_operations):
         encrypted_mnemonics = LoadEncryptedMnemonic(ctx)
         words = encrypted_mnemonics.load_from_storage()
     assert words == ECB_WORDS.split()
+
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
 
 
 def test_load_encrypted_from_flash_wrong_key(m5stickv, mocker):
@@ -593,7 +601,7 @@ def test_encryption_key_strength(m5stickv, mocker):
 def test_decrypt_kef(m5stickv, mocker):
     """Verify that decrypt_kef attempts to unseal kef-envelope(s)"""
     from krux.pages.encryption_ui import decrypt_kef
-    from krux.input import BUTTON_ENTER, BUTTON_PAGE_PREV
+    from krux.input import BUTTON_ENTER, BUTTON_PAGE, BUTTON_PAGE_PREV
     from krux import kef
 
     plaintext = b"this is plain text"
@@ -630,8 +638,41 @@ def test_decrypt_kef(m5stickv, mocker):
     assert result == plaintext
     assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
 
+    # wrong decryption key will result in KeyError raised from decrypt_kef's call
+    # to KEFEnvelope.unseal_ui() and does NOT catch it, allows KeyError to bubble up
+    # callers decrypt_kef() can not catch KeyError and instead allow it to bubble up
+    BTN_SEQUENCE = [
+        BUTTON_ENTER,  # external envelope "Decrypt?"
+        BUTTON_ENTER,  # enter key
+        BUTTON_ENTER,  # "a" as key
+        BUTTON_PAGE_PREV,  # move to "Go"
+        BUTTON_ENTER,  # Go
+        BUTTON_ENTER,  # Confirm "a" as key
+    ]
+    ctx = create_ctx(mocker, BTN_SEQUENCE)
+    with pytest.raises(KeyError, match="Failed to decrypt"):
+        decrypt_kef(ctx, envelope)
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
 
-def test_decrypt_kef_offers_decrypt_ui_appriately(m5stickv, mocker):
+    # declining to decrypt results in ValueError("Not decrypted")
+    # which callers of decrypt_kef() will likely catch to deal with original data
+    BTN_SEQUENCE = [
+        BUTTON_PAGE_PREV,  # decline to "Decrypt?"
+    ]
+    ctx = create_ctx(mocker, BTN_SEQUENCE)
+    with pytest.raises(ValueError, match="Not decrypted"):
+        decrypt_kef(ctx, envelope)
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
+
+    # as well, nothing to decrypt also results in ValueError("Not decrypted")
+    # which callers of decrypt_kef() will likely catch to deal with original data
+    ctx = create_ctx(mocker, [])
+    with pytest.raises(ValueError, match="Not decrypted"):
+        decrypt_kef(ctx, "I am not a valid KEF envelope")
+    assert ctx.input.wait_for_button.call_count == 0
+
+
+def test_decrypt_kef_offers_decrypt_ui_appropriately(m5stickv, mocker):
     """
     Intention here is to verify that KEFEnvelope class is instantiated
     and used when expected, not that decryption actually succeeds.
@@ -645,9 +686,7 @@ def test_decrypt_kef_offers_decrypt_ui_appriately(m5stickv, mocker):
     # setup data: a fake kef envelope, non-kef data, decrypt-evidence, and responding "No" to "Decrypt?"
     fake_kef = kef.wrap(b"", 0, 10000, bytes([i * 8 for i in range(32)]))
     non_kef = b"this is not a valid kef envelope"
-    evidence = (
-        "KEF Encrypted (32 B)\nID: \nVersion: AES-ECB v1\nKey iter.: 10000\n\nDecrypt?"
-    )
+    evidence = "KEF Encrypted (32 B)\nID: \nVersion: AES-ECB v1\nPBKDF2 iter.: 10000\n\nDecrypt?"
     BTN_SEQUENCE = [BUTTON_PAGE_PREV]
 
     print("test w/ kef bytes")
@@ -660,7 +699,7 @@ def test_decrypt_kef_offers_decrypt_ui_appriately(m5stickv, mocker):
     ctx.display.to_lines.assert_called_with(evidence)
 
     print("test w/ non-kef bytes")
-    ctx = create_ctx(mocker, BTN_SEQUENCE)
+    ctx = create_ctx(mocker, [])
     try:
         decrypt_kef(ctx, non_kef)
     except ValueError:
@@ -678,7 +717,7 @@ def test_decrypt_kef_offers_decrypt_ui_appriately(m5stickv, mocker):
     ctx.display.to_lines.assert_called_with(evidence)
 
     print("test with non-kef hex")
-    ctx = create_ctx(mocker, BTN_SEQUENCE)
+    ctx = create_ctx(mocker, [])
     try:
         decrypt_kef(ctx, hexlify(non_kef).decode())
     except ValueError:
@@ -687,7 +726,7 @@ def test_decrypt_kef_offers_decrypt_ui_appriately(m5stickv, mocker):
     ctx.display.to_lines.assert_not_called()
 
     print("test with invalid hex-ish str")
-    ctx = create_ctx(mocker, BTN_SEQUENCE)
+    ctx = create_ctx(mocker, [])
     try:
         decrypt_kef(ctx, hexlify(non_kef).decode() + ":`")
     except ValueError:
@@ -705,7 +744,7 @@ def test_decrypt_kef_offers_decrypt_ui_appriately(m5stickv, mocker):
     ctx.display.to_lines.assert_called_with(evidence)
 
     print("test with non-kef HEX")
-    ctx = create_ctx(mocker, BTN_SEQUENCE)
+    ctx = create_ctx(mocker, [])
     try:
         decrypt_kef(ctx, hexlify(non_kef).decode().upper())
     except ValueError:
@@ -714,7 +753,7 @@ def test_decrypt_kef_offers_decrypt_ui_appriately(m5stickv, mocker):
     ctx.display.to_lines.assert_not_called()
 
     print("test with invalid HEX-ish str")
-    ctx = create_ctx(mocker, BTN_SEQUENCE)
+    ctx = create_ctx(mocker, [])
     try:
         decrypt_kef(ctx, hexlify(non_kef).decode().upper() + ":`")
     except ValueError:
@@ -732,7 +771,7 @@ def test_decrypt_kef_offers_decrypt_ui_appriately(m5stickv, mocker):
     ctx.display.to_lines.assert_called_with(evidence)
 
     print("test with non-kef base32")
-    ctx = create_ctx(mocker, BTN_SEQUENCE)
+    ctx = create_ctx(mocker, [])
     try:
         decrypt_kef(ctx, base_encode(non_kef, 32))
     except ValueError:
@@ -741,7 +780,7 @@ def test_decrypt_kef_offers_decrypt_ui_appriately(m5stickv, mocker):
     ctx.display.to_lines.assert_not_called()
 
     print("test with invalid base32-ish str")
-    ctx = create_ctx(mocker, BTN_SEQUENCE)
+    ctx = create_ctx(mocker, [])
     try:
         decrypt_kef(ctx, base_encode(non_kef, 32) + "8@")
     except ValueError:
@@ -759,7 +798,7 @@ def test_decrypt_kef_offers_decrypt_ui_appriately(m5stickv, mocker):
     ctx.display.to_lines.assert_called_with(evidence)
 
     print("test with non-kef base43")
-    ctx = create_ctx(mocker, BTN_SEQUENCE)
+    ctx = create_ctx(mocker, [])
     try:
         decrypt_kef(ctx, base_encode(non_kef, 43))
     except ValueError:
@@ -768,7 +807,7 @@ def test_decrypt_kef_offers_decrypt_ui_appriately(m5stickv, mocker):
     ctx.display.to_lines.assert_not_called()
 
     print("test with invalid base43-ish str")
-    ctx = create_ctx(mocker, BTN_SEQUENCE)
+    ctx = create_ctx(mocker, [])
     try:
         decrypt_kef(ctx, base_encode(non_kef, 43) + ":@")
     except ValueError:
@@ -786,7 +825,7 @@ def test_decrypt_kef_offers_decrypt_ui_appriately(m5stickv, mocker):
     ctx.display.to_lines.assert_called_with(evidence)
 
     print("test with non-kef base64")
-    ctx = create_ctx(mocker, BTN_SEQUENCE)
+    ctx = create_ctx(mocker, [])
     try:
         decrypt_kef(ctx, base_encode(non_kef, 64))
     except ValueError:
@@ -1095,7 +1134,7 @@ def test_kefenvelope_input_key_ui(m5stickv, mocker):
         QRCodeCapture,
         "qr_capture_loop",
         new=lambda self: (
-            b"\x06binkey\x05\x01\x88WB\xb9\xab\xb6\xe9\x83\x97y\x1ab\xb0F\xe2|\xd3E\x11\xef\x9a",
+            b"\x06binkey\x05\x01\x88WB\xb9\xab\xb6\xe9\x83\x97y\x1ab\xb0F\xe2|\xd3E\x84\x2b\x2c",
             None,
         ),
     )
@@ -1103,6 +1142,27 @@ def test_kefenvelope_input_key_ui(m5stickv, mocker):
     page = KEFEnvelope(ctx)
     assert page.input_key_ui() == True
     assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
+
+    print("returns None if wrong key")
+    BTN_SEQUENCE = [
+        BUTTON_PAGE,  # select scan
+        BUTTON_ENTER,  # scan key
+        BUTTON_ENTER,  # confirm decrypt
+        BUTTON_ENTER,  # enter key
+        BUTTON_PAGE,  # move to "b"
+        BUTTON_ENTER,  # key is "b"
+        BUTTON_PAGE_PREV,  # move to "a"
+        BUTTON_PAGE_PREV,  # move to Go
+        BUTTON_ENTER,  # select Go
+        BUTTON_ENTER,  # confirm key "b"
+    ]
+    ctx = create_ctx(mocker, BTN_SEQUENCE)
+    page = KEFEnvelope(ctx)
+    assert page.input_key_ui() == bool(None)
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
+    ctx.display.flash_text.assert_called_with(
+        "Failed to decrypt", 248, 2000, highlight_prefix=""
+    )
 
     print("returns False if no key was gathered")
     BTN_SEQUENCE = [BUTTON_ENTER, BUTTON_PAGE_PREV, BUTTON_ENTER]
@@ -1157,6 +1217,29 @@ def test_kefenvelope_input_version_ui(m5stickv, mocker):
     assert (page.mode, page.mode_name, page.version, page.version_name) != defaults
     assert page.version is not None and page.version_name is not None
     assert page.iv_len is not None
+
+
+def test_kefenvelope_iterations_delta(m5stickv, mocker):
+    from krux.pages.encryption_ui import KEFEnvelope
+    from krux.krux_settings import Settings
+
+    ELAPSED_TIMES = [0, 1234, 1567825, 1073741823]
+    BASE_ITERATIONS_AND_EXPECTED_VALUES = [
+        (10000, [10000, 10234, 10825, 10823]),
+        (100000, [100000, 101234, 107825, 101823]),
+        (500000, [500000, 501234, 517825, 541823]),
+    ]
+
+    ctx = create_ctx(mocker, [])
+
+    for elapsed_time in ELAPSED_TIMES:
+        for base_iterations, expected_values in BASE_ITERATIONS_AND_EXPECTED_VALUES:
+            mocker.patch("time.ticks_ms", return_value=elapsed_time)
+            Settings().encryption.pbkdf2_iterations = base_iterations
+
+            page = KEFEnvelope(ctx)
+            expected_iterations = expected_values[ELAPSED_TIMES.index(elapsed_time)]
+            assert page.iterations == expected_iterations
 
 
 def test_kefenvelope_input_iterations_ui(m5stickv, mocker):
@@ -1346,10 +1429,10 @@ def test_kefenvelope_public_info_ui(m5stickv, mocker):
         + bytes([i for i in range(32)])
     )
     text_id_evidence = (
-        "KEF Encrypted (32 B)\nID: ID\nVersion: AES-ECB v1\nKey iter.: 100000000"
+        "KEF Encrypted (32 B)\nID: ID\nVersion: AES-ECB v1\nPBKDF2 iter.: 100000000"
     )
     binary_id_evidence = (
-        "KEF Encrypted (32 B)\nID: 0xbeef\nVersion: AES-ECB v1\nKey iter.: 100000000"
+        "KEF Encrypted (32 B)\nID: 0xbeef\nVersion: AES-ECB v1\nPBKDF2 iter.: 100000000"
     )
 
     print("requires a kef_envelope argument or for parse() to have already been called")
@@ -1397,7 +1480,13 @@ def test_kefenvelope_public_info_ui(m5stickv, mocker):
 
 
 def test_kefenvelope_seal_ui(m5stickv, mocker):
-    from krux.pages.encryption_ui import KEFEnvelope
+    from krux.pages.encryption_ui import (
+        KEFEnvelope,
+        OVERRIDE_LABEL,
+        OVERRIDE_MODE,
+        OVERRIDE_ITERATIONS,
+        OVERRIDE_VERSION,
+    )
     from krux.input import BUTTON_ENTER, BUTTON_PAGE_PREV
 
     print("default is to seal plaintext using defaults w/ least interaction")
@@ -1435,7 +1524,32 @@ def test_kefenvelope_seal_ui(m5stickv, mocker):
     assert page.seal_ui(b"plain text") == None
     assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
 
-    print("if override_defaults, allows updating iterations, mode, label")
+    print("overrides param is a list, ie: [OVERRIDE_LABEL]")
+    BTN_SEQUENCE = [
+        BUTTON_ENTER,  # enter key
+        BUTTON_ENTER,  # key is "a"
+        BUTTON_PAGE_PREV,  # back to Go
+        BUTTON_ENTER,  # select go
+        BUTTON_ENTER,  # confirm key "a"
+        BUTTON_ENTER,  # confirm to add GCM cam entropy
+        BUTTON_PAGE_PREV,  # deny updating label
+    ]
+    ctx = create_ctx(mocker, BTN_SEQUENCE)
+    page = KEFEnvelope(ctx)
+    page.label = "my ID"
+    sealed = page.seal_ui(b"plain text", overrides=[OVERRIDE_LABEL])
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
+    assert isinstance(sealed, bytes) and len(sealed) > 8
+    ctx.display.draw_centered_text.assert_has_calls(
+        [
+            mocker.call("Additional entropy from camera required for AES-GCM"),
+            mocker.call("Update KEF ID? my ID", highlight_prefix="?"),
+        ]
+    )
+
+    print(
+        "overrides param is a list, ie: [OVERRIDE_MODE, OVERRIDE_ITERATIONS, OVERRIDE_LABEL]"
+    )
     BTN_SEQUENCE = [
         BUTTON_ENTER,  # enter key
         BUTTON_ENTER,  # key is "a"
@@ -1450,12 +1564,14 @@ def test_kefenvelope_seal_ui(m5stickv, mocker):
     ctx = create_ctx(mocker, BTN_SEQUENCE)
     page = KEFEnvelope(ctx)
     page.label = "my ID"
-    sealed = page.seal_ui(b"plain text", override_defaults=True)
+    sealed = page.seal_ui(
+        b"plain text", overrides=[OVERRIDE_MODE, OVERRIDE_ITERATIONS, OVERRIDE_LABEL]
+    )
     assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
     assert isinstance(sealed, bytes) and len(sealed) > 8
     ctx.display.draw_centered_text.assert_has_calls(
         [
-            mocker.call("Use default Key iter.? 100001", highlight_prefix="?"),
+            mocker.call("Use default PBKDF2 iter.? 100001", highlight_prefix="?"),
             mocker.call("Use default Mode? AES-GCM", highlight_prefix="?"),
             mocker.call("Additional entropy from camera required for AES-GCM"),
             mocker.call("Update KEF ID? my ID", highlight_prefix="?"),
@@ -1468,7 +1584,7 @@ def test_kefenvelope_seal_ui(m5stickv, mocker):
     )
 
     print(
-        "if override_defaults and specific_version, allows updating iterations, a particular version, and label"
+        "overrides param is a list, ie: [OVERRIDE_ITERATIONS, OVERRIDE_VERSION, OVERRIDE_LABEL]"
     )
     BTN_SEQUENCE = [
         BUTTON_ENTER,  # enter key
@@ -1487,13 +1603,15 @@ def test_kefenvelope_seal_ui(m5stickv, mocker):
     page = KEFEnvelope(ctx)
     page.label = "my ID"
     assert page.version == None
-    sealed = page.seal_ui(b"plain text", override_defaults=True, specific_version=True)
+    sealed = page.seal_ui(
+        b"plain text", overrides=[OVERRIDE_ITERATIONS, OVERRIDE_VERSION, OVERRIDE_LABEL]
+    )
     assert page.version == 21
     assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
     assert isinstance(sealed, bytes) and len(sealed) > 8
     ctx.display.draw_centered_text.assert_has_calls(
         [
-            mocker.call("Use default Key iter.? 100001", highlight_prefix="?"),
+            mocker.call("Use default PBKDF2 iter.? 100001", highlight_prefix="?"),
             mocker.call("Use default Mode? AES-GCM", highlight_prefix="?"),
             mocker.call("Additional entropy from camera required for AES-GCM"),
             mocker.call("Update KEF ID? my ID", highlight_prefix="?"),
@@ -1549,18 +1667,20 @@ def test_kefenvelope_unseal_ui(m5stickv, mocker):
     assert plain == b"plain text"
 
     print("can optionally display the decrypted plaintext")
-    ctx = create_ctx(mocker, BTN_SEQUENCE + [BUTTON_ENTER])
+    BTN_SEQUENCE = BTN_SEQUENCE + [BUTTON_ENTER]
+    ctx = create_ctx(mocker, BTN_SEQUENCE)
     page = KEFEnvelope(ctx)
     plain = page.unseal_ui(sealed_text, display_plain=True)
-    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE) + 1
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
     assert plain == b"plain text"
     ctx.display.draw_centered_text.assert_has_calls([mocker.call("plain text")])
 
     print("can optionally display the decrypted plain hexlified bytes")
-    ctx = create_ctx(mocker, BTN_SEQUENCE + [BUTTON_ENTER])
+
+    ctx = create_ctx(mocker, BTN_SEQUENCE)
     page = KEFEnvelope(ctx)
     plain = page.unseal_ui(sealed_binary, display_plain=True)
-    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE) + 1
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
     assert plain == b"\xde\xad\xbe\xef"
     ctx.display.draw_centered_text.assert_has_calls([mocker.call("0xdeadbeef")])
 

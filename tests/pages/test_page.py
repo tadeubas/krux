@@ -65,12 +65,16 @@ def test_prompt_m5stickv(mocker, m5stickv, mock_page_cls):
     page = mock_page_cls(ctx)
 
     # Enter pressed
-    ctx.input.wait_for_button = mocker.MagicMock(side_effect=[BUTTON_ENTER])
+    BTN_SEQUENCE = [BUTTON_ENTER]
+    ctx.input.wait_for_button = mocker.MagicMock(side_effect=BTN_SEQUENCE)
     assert page.prompt("test prompt") == True
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
 
     # Page pressed
-    ctx.input.wait_for_button = mocker.MagicMock(side_effect=[BUTTON_PAGE])
+    BTN_SEQUENCE = [BUTTON_PAGE]
+    ctx.input.wait_for_button = mocker.MagicMock(side_effect=BTN_SEQUENCE)
     assert page.prompt("test prompt") == False
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
 
 
 def test_prompt_amigo(mocker, amigo, mock_page_cls):
@@ -80,31 +84,38 @@ def test_prompt_amigo(mocker, amigo, mock_page_cls):
     page = mock_page_cls(ctx)
 
     # Enter pressed
-    ctx.input.wait_for_button = mocker.MagicMock(side_effect=[BUTTON_ENTER])
+    BTN_SEQUENCE = [BUTTON_ENTER]
+    ctx.input.wait_for_button = mocker.MagicMock(side_effect=BTN_SEQUENCE)
     assert page.prompt("test prompt") == True
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
 
     # Page, than Enter pressed
     page_press = [BUTTON_PAGE, BUTTON_ENTER]
     ctx.input.wait_for_button = mocker.MagicMock(side_effect=page_press)
     assert page.prompt("test prompt") == False
+    assert ctx.input.wait_for_button.call_count == len(page_press)
 
     ctx.input.buttons_active = False
     # Index 1 = YES pressed
+    BTN_SEQUENCE = [BUTTON_TOUCH]
     ctx.input.touch = mocker.MagicMock(current_index=mocker.MagicMock(side_effect=[1]))
-    ctx.input.wait_for_button = mocker.MagicMock(side_effect=[BUTTON_TOUCH])
+    ctx.input.wait_for_button = mocker.MagicMock(side_effect=BTN_SEQUENCE)
     assert page.prompt("test prompt") == True
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
 
     # Index 0 = No pressed
     ctx.input.touch = mocker.MagicMock(current_index=mocker.MagicMock(side_effect=[0]))
-    ctx.input.wait_for_button = mocker.MagicMock(side_effect=[BUTTON_TOUCH])
+    ctx.input.wait_for_button = mocker.MagicMock(side_effect=BTN_SEQUENCE)
     assert page.prompt("test prompt") == False
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
 
 
 def test_display_qr_code(mocker, m5stickv, mock_page_cls):
     from krux.input import BUTTON_ENTER
     from krux.qr import FORMAT_NONE
 
-    ctx = create_ctx(mocker, [BUTTON_ENTER])
+    BTN_SEQUENCE = [BUTTON_ENTER]
+    ctx = create_ctx(mocker, BTN_SEQUENCE)
     page = mock_page_cls(ctx)
 
     # Test QR code display
@@ -116,13 +127,16 @@ def test_display_qr_code(mocker, m5stickv, mock_page_cls):
         TEST_QR_DATA_IMAGE, 0, 0, 0
     )
 
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
+
 
 def test_display_qr_code_light_theme(mocker, m5stickv, mock_page_cls):
     from krux.input import BUTTON_ENTER
     from krux.qr import FORMAT_NONE
     from krux.themes import theme, WHITE
 
-    ctx = create_ctx(mocker, [BUTTON_ENTER])
+    BTN_SEQUENCE = [BUTTON_ENTER]
+    ctx = create_ctx(mocker, BTN_SEQUENCE)
     page = mock_page_cls(ctx)
 
     # Mock light theme background color
@@ -135,6 +149,8 @@ def test_display_qr_code_light_theme(mocker, m5stickv, mock_page_cls):
     assert ctx.display.draw_qr_code.call_args == mocker.call(
         TEST_QR_DATA_IMAGE, 0, 0, 0, light_color=WHITE
     )
+
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
 
 
 def test_display_qr_code_loop_through_brightness(mocker, m5stickv, mock_page_cls):
@@ -168,6 +184,7 @@ def get_frame_titles_resulting_from_input(
 ):
     from krux.input import BUTTON_TOUCH, SWIPE_RIGHT, BUTTON_PAGE, BUTTON_ENTER
     from krux.pages.keypads import Keypad
+    from krux.kboard import kboard
 
     def get_button_seq(key_index):
         return [*([BUTTON_PAGE] * (key_index - 1))] + [BUTTON_ENTER]
@@ -204,6 +221,7 @@ def get_frame_titles_resulting_from_input(
     ctx = create_ctx(mocker, button_seq, None, None, touch_seq)
     if not has_touch:
         ctx.input.touch = None
+        kboard.has_touchscreen = False
     page = mock_page_cls(ctx)
     captured = page.capture_from_keypad(title, keysets)
     frame_titles = [
@@ -231,6 +249,7 @@ def test_keypad_esc_no_exit(mocker, amigo):
     page.capture_from_keypad("test", [LETTERS])
 
     assert ctx.input.touch.set_regions.call_count == 4
+    assert ctx.input.wait_for_button.call_count == len(btn_seq)
 
 
 def test_keypad_swipe_hint_is_shown_after_more_keypress_and_cleared_after_other_keypress(
@@ -321,74 +340,74 @@ def test_fit_to_line_text(mocker, multiple_devices, mock_page_cls):
     cases = [
         {
             TXT: "0123456789abcdefghijklmnopqrstuvwxyz",
-            AMIGO: "0123456789a..pqrstuvwxyz",
-            M5: "0123456..tuvwxyz",
-            DOCK: "0123456789ab..opqrstuvwxyz",
+            AMIGO: "0123456789ab…opqrstuvwxyz",
+            M5: "0123456…tuvwxyz",
+            DOCK: "0123456789abc…nopqrstuvwxyz",
         },
         {
             TXT: "0123456789abcdefghijklmnopqrstuvwxy",
-            AMIGO: "0123456789a..opqrstuvwxy",
-            M5: "0123456..stuvwxy",
-            DOCK: "0123456789ab..nopqrstuvwxy",
+            AMIGO: "0123456789ab…nopqrstuvwxy",
+            M5: "0123456…stuvwxy",
+            DOCK: "0123456789abc…mnopqrstuvwxy",
         },
         {
             TXT: "0123456789abcdefghijklmnopqrstuvwx",
-            AMIGO: "0123456789a..nopqrstuvwx",
-            M5: "0123456..rstuvwx",
-            DOCK: "0123456789ab..mnopqrstuvwx",
+            AMIGO: "0123456789ab…mnopqrstuvwx",
+            M5: "0123456…rstuvwx",
+            DOCK: "0123456789abc…lmnopqrstuvwx",
         },
         {
             TXT: "0123456789abcdefghijklmnopqrstuvw",
-            AMIGO: "0123456789a..mnopqrstuvw",
-            M5: "0123456..qrstuvw",
-            DOCK: "0123456789ab..lmnopqrstuvw",
+            AMIGO: "0123456789ab…lmnopqrstuvw",
+            M5: "0123456…qrstuvw",
+            DOCK: "0123456789abc…klmnopqrstuvw",
         },
         {
             TXT: "0123456789abcdefghijklmnopqr",
-            AMIGO: "0123456789a..hijklmnopqr",
-            M5: "0123456..lmnopqr",
-            DOCK: "0123456789ab..ghijklmnopqr",
+            AMIGO: "0123456789ab…ghijklmnopqr",
+            M5: "0123456…lmnopqr",
+            DOCK: "0123456789abc…fghijklmnopqr",
         },
         {
             TXT: "0123456789abcdefghijklmnopq",
-            AMIGO: "0123456789a..ghijklmnopq",
-            M5: "0123456..klmnopq",
+            AMIGO: "0123456789ab…fghijklmnopq",
+            M5: "0123456…klmnopq",
             DOCK: "0123456789abcdefghijklmnopq",
         },
         {
             TXT: "0123456789abcdefghijklmnop",
-            AMIGO: "0123456789a..fghijklmnop",
-            M5: "0123456..jklmnop",
+            AMIGO: "0123456789ab…efghijklmnop",
+            M5: "0123456…jklmnop",
             DOCK: "0123456789abcdefghijklmnop",
         },
         {
             TXT: "0123456789abcdefghijklmno",
             AMIGO: "0123456789abcdefghijklmno",
-            M5: "0123456..ijklmno",
+            M5: "0123456…ijklmno",
             DOCK: "0123456789abcdefghijklmno",
         },
         {
             TXT: "0123456789abcdefghijklmn",
             AMIGO: "0123456789abcdefghijklmn",
-            M5: "0123456..hijklmn",
+            M5: "0123456…hijklmn",
             DOCK: "0123456789abcdefghijklmn",
         },
         {
             TXT: "0123456789abcdefghijklm",
             AMIGO: "0123456789abcdefghijklm",
-            M5: "0123456..ghijklm",
+            M5: "0123456…ghijklm",
             DOCK: "0123456789abcdefghijklm",
         },
         {
             TXT: "0123456789abcdefghij",
             AMIGO: "0123456789abcdefghij",
-            M5: "0123456..defghij",
+            M5: "0123456…defghij",
             DOCK: "0123456789abcdefghij",
         },
         {
             TXT: "0123456789abcdefg",
             AMIGO: "0123456789abcdefg",
-            M5: "0123456..abcdefg",
+            M5: "0123456…abcdefg",
             DOCK: "0123456789abcdefg",
         },
         {
@@ -407,7 +426,7 @@ def test_fit_to_line_text(mocker, multiple_devices, mock_page_cls):
 
     curr_device = board.config["type"]
     device_type = curr_device if curr_device in (AMIGO, M5) else DOCK
-    max_chars_in_line = ctx.display.usable_pixels_in_line() // FONT_WIDTH
+    max_chars_in_line = ctx.display.ascii_chars_per_line()
 
     for i, case in enumerate(cases):
         print(i)
@@ -433,36 +452,36 @@ def test_fit_to_line_prefix(mocker, multiple_devices, mock_page_cls):
         {
             PREFIX: "1 .",
             TXT: "0123456789abcdefghijklmnopqrstuvwxyz",
-            AMIGO: "1 .0123456789..qrstuvwxyz",
-            M5: "1 .01234..vwxyz",
-            DOCK: "1 .0123456789a..pqrstuvwxyz",
+            AMIGO: "1 .0123456789…qrstuvwxyz",
+            M5: "1 .012345…uvwxyz",
+            DOCK: "1 .0123456789a…pqrstuvwxyz",
         },
         {
             PREFIX: "1234567890abcd .",
             TXT: "0123456789abcdefghijklmnopqrstuvwxyz",
-            AMIGO: "1234567890abcd .012..xyz",
+            AMIGO: "1234567890abcd .0123…wxyz",
             M5: "1234567890abcd .",
-            DOCK: "1234567890abcd .0123..wxyz",
+            DOCK: "1234567890abcd .01234…vwxyz",
         },
         {
             PREFIX: "1234567890abcdefghi .",
             TXT: "jjkkll",
             AMIGO: "1234567890abcdefghi .",
-            M5: "1234567..efghi .",
+            M5: "1234567…efghi .",
             DOCK: "1234567890abcdefghi .jjkkll",
         },
         {
             PREFIX: "1234567890abcdefgh .",
             TXT: "jjkkll",
-            AMIGO: "1234567890abcdefgh .j..l",
-            M5: "1234567..defgh .",
+            AMIGO: "1234567890abcdefgh .jj…ll",
+            M5: "1234567…defgh .",
             DOCK: "1234567890abcdefgh .jjkkll",
         },
     ]
 
     curr_device = board.config["type"]
     device_type = curr_device if curr_device in (AMIGO, M5) else DOCK
-    max_chars_in_line = ctx.display.usable_pixels_in_line() // FONT_WIDTH
+    max_chars_in_line = ctx.display.ascii_chars_per_line()
 
     for i, case in enumerate(cases):
         print(i)
@@ -488,15 +507,15 @@ def test_fit_to_line_not_crop_middle(mocker, multiple_devices, mock_page_cls):
         {
             PREFIX: "",
             TXT: "0123456789abcdefghijklmnopqrstuvwxyz",
-            AMIGO: "0123456789abcdefghijklm..",
-            M5: "0123456789abcd..",
-            DOCK: "0123456789abcdefghijklmno..",
+            AMIGO: "0123456789abcdefghijklmn…",
+            M5: "0123456789abcde…",
+            DOCK: "0123456789abcdefghijklmnop…",
         },
         {
             PREFIX: "",
             TXT: "0123456789abcdefghijklmno",
             AMIGO: "0123456789abcdefghijklmno",
-            M5: "0123456789abcd..",
+            M5: "0123456789abcde…",
             DOCK: "0123456789abcdefghijklmno",
         },
         {
@@ -509,36 +528,36 @@ def test_fit_to_line_not_crop_middle(mocker, multiple_devices, mock_page_cls):
         {
             PREFIX: "1 .",
             TXT: "0123456789abcdefghijklmnopqrstuvwxyz",
-            AMIGO: "1 .0123456789abcdefghij..",
-            M5: "1 .0123456789a..",
-            DOCK: "1 .0123456789abcdefghijkl..",
+            AMIGO: "1 .0123456789abcdefghijk…",
+            M5: "1 .0123456789ab…",
+            DOCK: "1 .0123456789abcdefghijklm…",
         },
         {
             PREFIX: "1234567890abcd .",
             TXT: "0123456789abcdefghijklmnopqrstuvwxyz",
-            AMIGO: "1234567890abcd .0123456..",
+            AMIGO: "1234567890abcd .01234567…",
             M5: "1234567890abcd .",
-            DOCK: "1234567890abcd .012345678..",
+            DOCK: "1234567890abcd .0123456789…",
         },
         {
             PREFIX: "1234567890abcdefghi .",
             TXT: "jjkkll",
             AMIGO: "1234567890abcdefghi .",
-            M5: "1234567890abcd..",
+            M5: "1234567890abcde…",
             DOCK: "1234567890abcdefghi .jjkkll",
         },
         {
             PREFIX: "1234567890abcdefgh .",
             TXT: "jjkkll",
-            AMIGO: "1234567890abcdefgh .jjk..",
-            M5: "1234567890abcd..",
+            AMIGO: "1234567890abcdefgh .jjkk…",
+            M5: "1234567890abcde…",
             DOCK: "1234567890abcdefgh .jjkkll",
         },
     ]
 
     curr_device = board.config["type"]
     device_type = curr_device if curr_device in (AMIGO, M5) else DOCK
-    max_chars_in_line = ctx.display.usable_pixels_in_line() // FONT_WIDTH
+    max_chars_in_line = ctx.display.ascii_chars_per_line()
 
     for i, case in enumerate(cases):
         print(i)

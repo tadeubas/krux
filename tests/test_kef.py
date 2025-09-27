@@ -1353,7 +1353,7 @@ def kef_self_document(version, label=None, iterations=None, limit=None):
     text["auth"] = auth
     if pad:
         text["pad"] = pad
-    text["k"] = "pbkdf2_hmac(sha256, <K>, id, i)"
+    text["k"] = "pbkdf2_hmac_sha256(<K>, id, i)"
 
     return join_text(text, limit)
 
@@ -1363,18 +1363,18 @@ def test_kef_self_document(m5stickv):
     from krux import kef
 
     test_cases = {
-        0: "[AES-ECB v1] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =0\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: e.encrypt(<P> + auth + pad)\ne: AES(k, ECB)\nauth: sha256(<P>)[:16]\npad: NUL\nk: pbkdf2_hmac(sha256, <K>, id, i)",
-        1: "[AES-CBC v1] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =1\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: iv + e.encrypt(<P> + auth + pad)\niv: 16b\ne: AES(k, CBC, iv)\nauth: sha256(<P>)[:16]\npad: NUL\nk: pbkdf2_hmac(sha256, <K>, id, i)",
-        5: "[AES-ECB] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =5\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: e.encrypt(<P> + pad) + auth\ne: AES(k, ECB)\npad: NUL\nauth: sha256(v + <P> + k)[:3]\nk: pbkdf2_hmac(sha256, <K>, id, i)",
-        6: "[AES-ECB +p] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =6\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: e.encrypt(<P> + auth + pad)\ne: AES(k, ECB)\nauth: sha256(<P>)[:4]\npad: PKCS7\nk: pbkdf2_hmac(sha256, <K>, id, i)",
-        7: "[AES-ECB +c] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =7\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: e.encrypt(zlib(<P>, wbits=-10) + auth + pad)\ne: AES(k, ECB)\nauth: sha256(zlib(<P>, wbits=-10))[:4]\npad: PKCS7\nk: pbkdf2_hmac(sha256, <K>, id, i)",
-        10: "[AES-CBC] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =10\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: iv + e.encrypt(<P> + pad) + auth\niv: 16b\ne: AES(k, CBC, iv)\npad: NUL\nauth: sha256(v + iv + <P> + k)[:4]\nk: pbkdf2_hmac(sha256, <K>, id, i)",
-        11: "[AES-CBC +p] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =11\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: iv + e.encrypt(<P> + auth + pad)\niv: 16b\ne: AES(k, CBC, iv)\nauth: sha256(<P>)[:4]\npad: PKCS7\nk: pbkdf2_hmac(sha256, <K>, id, i)",
-        12: "[AES-CBC +c] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =12\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: iv + e.encrypt(zlib(<P>, wbits=-10) + auth + pad)\niv: 16b\ne: AES(k, CBC, iv)\nauth: sha256(zlib(<P>, wbits=-10))[:4]\npad: PKCS7\nk: pbkdf2_hmac(sha256, <K>, id, i)",
-        15: "[AES-CTR] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =15\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: iv + e.encrypt(<P> + auth)\niv: 12b\ne: AES(k, CTR, iv)\nauth: sha256(<P>)[:4]\nk: pbkdf2_hmac(sha256, <K>, id, i)",
-        16: "[AES-CTR +c] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =16\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: iv + e.encrypt(zlib(<P>, wbits=-10) + auth)\niv: 12b\ne: AES(k, CTR, iv)\nauth: sha256(zlib(<P>, wbits=-10))[:4]\nk: pbkdf2_hmac(sha256, <K>, id, i)",
-        20: "[AES-GCM] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =20\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: iv + e.encrypt(<P>) + auth\niv: 12b\ne: AES(k, GCM, iv)\nauth: e.authtag[:4]\nk: pbkdf2_hmac(sha256, <K>, id, i)",
-        21: "[AES-GCM +c] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =21\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: iv + e.encrypt(zlib(<P>, wbits=-10)) + auth\niv: 12b\ne: AES(k, GCM, iv)\nauth: e.authtag[:4]\nk: pbkdf2_hmac(sha256, <K>, id, i)",
+        0: "[AES-ECB v1] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =0\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: e.encrypt(<P> + auth + pad)\ne: AES(k, ECB)\nauth: sha256(<P>)[:16]\npad: NUL\nk: pbkdf2_hmac_sha256(<K>, id, i)",
+        1: "[AES-CBC v1] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =1\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: iv + e.encrypt(<P> + auth + pad)\niv: 16b\ne: AES(k, CBC, iv)\nauth: sha256(<P>)[:16]\npad: NUL\nk: pbkdf2_hmac_sha256(<K>, id, i)",
+        5: "[AES-ECB] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =5\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: e.encrypt(<P> + pad) + auth\ne: AES(k, ECB)\npad: NUL\nauth: sha256(v + <P> + k)[:3]\nk: pbkdf2_hmac_sha256(<K>, id, i)",
+        6: "[AES-ECB +p] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =6\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: e.encrypt(<P> + auth + pad)\ne: AES(k, ECB)\nauth: sha256(<P>)[:4]\npad: PKCS7\nk: pbkdf2_hmac_sha256(<K>, id, i)",
+        7: "[AES-ECB +c] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =7\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: e.encrypt(zlib(<P>, wbits=-10) + auth + pad)\ne: AES(k, ECB)\nauth: sha256(zlib(<P>, wbits=-10))[:4]\npad: PKCS7\nk: pbkdf2_hmac_sha256(<K>, id, i)",
+        10: "[AES-CBC] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =10\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: iv + e.encrypt(<P> + pad) + auth\niv: 16b\ne: AES(k, CBC, iv)\npad: NUL\nauth: sha256(v + iv + <P> + k)[:4]\nk: pbkdf2_hmac_sha256(<K>, id, i)",
+        11: "[AES-CBC +p] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =11\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: iv + e.encrypt(<P> + auth + pad)\niv: 16b\ne: AES(k, CBC, iv)\nauth: sha256(<P>)[:4]\npad: PKCS7\nk: pbkdf2_hmac_sha256(<K>, id, i)",
+        12: "[AES-CBC +c] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =12\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: iv + e.encrypt(zlib(<P>, wbits=-10) + auth + pad)\niv: 16b\ne: AES(k, CBC, iv)\nauth: sha256(zlib(<P>, wbits=-10))[:4]\npad: PKCS7\nk: pbkdf2_hmac_sha256(<K>, id, i)",
+        15: "[AES-CTR] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =15\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: iv + e.encrypt(<P> + auth)\niv: 12b\ne: AES(k, CTR, iv)\nauth: sha256(<P>)[:4]\nk: pbkdf2_hmac_sha256(<K>, id, i)",
+        16: "[AES-CTR +c] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =16\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: iv + e.encrypt(zlib(<P>, wbits=-10) + auth)\niv: 12b\ne: AES(k, CTR, iv)\nauth: sha256(zlib(<P>, wbits=-10))[:4]\nk: pbkdf2_hmac_sha256(<K>, id, i)",
+        20: "[AES-GCM] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =20\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: iv + e.encrypt(<P>) + auth\niv: 12b\ne: AES(k, GCM, iv)\nauth: e.authtag[:4]\nk: pbkdf2_hmac_sha256(<K>, id, i)",
+        21: "[AES-GCM +c] KEF bytes: len_id + id + v + i + cpl\nlen_id: 1b\nid: <len_id>b\nv: 1b; =21\ni: 3b big; =(i > 10K) ? i : i * 10K\ncpl: iv + e.encrypt(zlib(<P>, wbits=-10)) + auth\niv: 12b\ne: AES(k, GCM, iv)\nauth: e.authtag[:4]\nk: pbkdf2_hmac_sha256(<K>, id, i)",
     }
 
     for v in kef.VERSIONS:
@@ -1688,10 +1688,19 @@ def NOtest_find_optimal_compress_threshold(m5stickv):
 def test_brute_force_compression_checks(m5stickv):
     """
     It is expected that different implementations of deflate/zlib.compress will
-    result in different compressed bytes.
-    This test verifies only that `reinflate(deflate(original)) == original`.
+    result in different compressed bytes.  KEF defines that compression MUST be done
+    with a 10-bits window -- so that others on restricted hardware may decompress.
+    However, implementations may safely decompress using a larger window.
+
+    This test verifies that `reinflate(deflate(original)) == original`.
     By default it will run external to krux devices but can be used to create a file
     for sdcard externally, then read on device, or created on device and read externally
+
+    To play, hack tests.shared_mocks.DeflateIO to:
+    * FAILURES: compress/write() using wrong wbits=-15, -14, -13, or -12,
+      while leaving decompress/read() using wbits=-10, as KEF Specificiations demand.
+    * OKAY: decompress/read() using non-standard wbits=-11 through -15,
+      while restricting compress/write() using wbits=-10
     """
     from hashlib import sha256
     from binascii import hexlify
@@ -1699,10 +1708,27 @@ def test_brute_force_compression_checks(m5stickv):
     from krux import kef
     from krux.wdt import wdt
 
-    file_name = "/sd/brute-force.txt"
+    # default to make samples slightly larger than wbits
+    bstr_size_threshold = 2**10 + 1
+
+    def new_uncompressed_bytes(some_bytes):
+        some_bytes = sha256(some_bytes).digest()
+        while len(some_bytes) < bstr_size_threshold:
+            some_bytes += sha256(some_bytes).digest()
+        return some_bytes
+
+    file_name = "/sd/brute-force-compression.txt"
     file_mode = "r"  # "w": to create file; "r": to read file; None to avoid file I/O
     attempts = 1000  # 1000 good enough for unit-tests, increase for on-device testing
-    bstr = b""
+    bstr_size_threshold = 2**14 + 1  # much larger than zlib.compression's 2**abs(wbits)
+
+    # samples of problematic uncompressed bytestrings (wrong wbits for compression)
+    try:
+        from kef_brute_force_compression_samples import (
+            all_samples as bstr_test_cases,
+        )
+    except:
+        bstr_test_cases = []
 
     if file_mode:
         if file_mode == "r":
@@ -1721,13 +1747,26 @@ def test_brute_force_compression_checks(m5stickv):
                 file_mode = None
                 print("  failed to create file {}, skipping file I/O".format(file_name))
 
+    bstr = b""
+    errors = 0
     for i in range(attempts):
         wdt.feed()
-        bstr = hexlify(sha256(bstr).digest()) * 10
+
+        if i < len(bstr_test_cases):
+            bstr = bstr_test_cases[i]
+        else:
+            bstr = new_uncompressed_bytes(bstr)
+
+        # test that we can compress and decompress on this platform
         comp = kef._deflate(bstr)
         sb64 = base_encode(comp, 64)
-        assert bstr == kef._reinflate(base_decode(sb64, 64))
+        try:
+            assert bstr == kef._reinflate(base_decode(sb64, 64))
+        except:
+            errors += 1
+            print("failed to reinflate after compressing bytes: ", repr(bstr))
 
+        # when in "write" mode, export compressed to test another platform
         if file_mode == "w":
             file_handle.write(sb64 + "\n")
             continue
@@ -1735,8 +1774,16 @@ def test_brute_force_compression_checks(m5stickv):
         if file_mode != "r":
             continue
 
+        # when in "read" mode, test uncompressing from another platform
         sb64_from_file = file_handle.readline()
-        assert bstr == kef._reinflate(base_decode(sb64_from_file, 64))
+        try:
+            bstr = kef._reinflate(base_decode(sb64_from_file, 64))
+        except:
+            errors += 1
+            print(
+                "failed to reinflate compressed bytes: ",
+                repr(base_decode(sb64_from_file, 64)),
+            )
 
     if file_mode:
         file_handle.close()
@@ -1746,7 +1793,7 @@ def test_brute_force_compression_checks(m5stickv):
             file_mode, i + 1
         )
     )
-    # assert 0
+    assert errors == 0
 
 
 def NOtest_assuming_kef_is_working_create_one_control(m5stickv):
@@ -1788,3 +1835,140 @@ def NOtest_assuming_kef_is_working_create_one_control(m5stickv):
         )
     )
     assert 0
+
+
+def test_grind_alternate_decryption_key(m5stickv):
+    """
+    KEF version 5 uses 3 bytes of auth, which is trivially weak.
+    Same for versions which have 4 bytes of auth (others except 0 and 1).
+
+    Therefore: an alternate decryption key, unlikely to be the
+    correct key (if strong), can be found soon-ish, resulting in "garbage"
+    bytes which are not the original secret.
+    """
+    from datetime import datetime, timedelta
+    from embit import bip39, bip32
+    from krux import kef
+    from krux.baseconv import base_encode
+
+    def another_key(byte_len):
+        """yields all 'hex' values of byte_len from counter, as bytes"""
+        counter = 0
+
+        while True:
+            try:
+                yield counter.to_bytes(byte_len, "big").hex().encode()
+                counter += 1
+            except:
+                break
+
+    grinding = False  # False so that test-suite completes; True to grind
+
+    test_cases = (
+        # true key, true secret, KEF envelope, alternate key (from past grinding), garbage (from alt key)
+        [
+            # AES-ECB version 5 w/ 3 bytes auth
+            b"abc",
+            b"I'm 16 raw bytes",
+            b"\x08a1e6c7e4\x05\x00\x00\x01\xe3\xc3\xb2\xa7)g\xa5q\x1eT\xd8sK\xf1\xfd\xd0-\xdc\x80",
+            b"421a8f",
+            b"'`+\xca\x9alt\xee\x9ad&k\x87\xdb\rp",
+        ],
+        [
+            # AES-ECB version 5 w/ 3 bytes auth
+            b"key",
+            b"I'm 16 raw bytes",
+            b"\x08a1e6c7e4\x05\x00\x00\x01\xf1\xe37\x1b\x01B*HC\x0cZW\x9b\xf9\xf0/\xca\x8a\x8f",
+            b"f2a8e9",
+            b"\xc8k\xa0\xc2i!\xe7`\xcen\x11!o\xff\xc42",
+        ],
+        # TODO: more examples from other versions once a performance-optimized KEF exists
+    )
+
+    for test_case in test_cases:
+        key, control_secret, kef_envelope, alt_key, control_garbage = test_case
+        id_, version, iterations, cpl = kef.unwrap(kef_envelope)
+        decryptor = kef.Cipher(key, id_, iterations)
+        secret = decryptor.decrypt(cpl, version)
+        assert secret == control_secret
+
+        decryptor = kef.Cipher(alt_key, id_, iterations)
+        garbage = decryptor.decrypt(cpl, version)
+        assert garbage == control_garbage
+        assert garbage != secret
+
+    if grinding:
+        # original secret, bip39 mnemonic entropy
+        secret = b"I'm 16 raw bytes"  # bad example of bip39 12w mnemonic entropy
+        key = b"key"  # bad example of a user-supplied encryption key
+
+        # kef setup
+        id_ = b"a1e6c7e4"  # bip32 mfp derived w/ secret as bip39 entropy
+        version = 20  # play here for other versions w/ "weak" auth
+        iterations = 10000  # minimal amount of iterations
+        ivec = I_VECTOR[:12]  # Initialization_Vector or b""
+
+        # try 256x more than probably necessary
+        key_len = abs(kef.VERSIONS[version]["auth"]) + 1
+
+        # create a KEF envelope
+        encryptor = kef.Cipher(key, id_, iterations)
+        cpl = encryptor.encrypt(secret, version, ivec)
+        envelope = kef.wrap(id_, version, iterations, cpl)
+        fmt = "Original:\n secret: {}\n key: {}\n id_: {}\n version: {}\n iterations: {}\n IV: {}\n KEF: {}\n b43 KEF: {}\n"
+        print(
+            fmt.format(
+                secret,
+                key,
+                id_,
+                version,
+                iterations,
+                ivec,
+                envelope,
+                base_encode(envelope, 43),
+            )
+        )
+
+        progress_step = 10
+        begin = datetime.now()
+        print("Grinding for an alternate decryption key: {}...".format(begin))
+        for i, alternate in enumerate(another_key(key_len)):
+            alternate = alternate.lstrip(
+                b"0"
+            )  # strip leading b'0's from hex encoded key
+            decryptor = kef.Cipher(alternate, id_, iterations)
+            decrypted = decryptor.decrypt(cpl, version)
+
+            if (i + 1) % progress_step == 0:
+                print(
+                    " grinding attempts: {}, elapsed: {}".format(
+                        i + 1, datetime.now() - begin
+                    )
+                )
+                progress_step *= 10
+
+            if decrypted is not None and alternate != key:
+                fmt = "Alternate key found: {}, attempts: {}, elapsed: {}\n returns {} bytes: {}"
+                print(
+                    fmt.format(
+                        alternate,
+                        i + 1,
+                        datetime.now() - begin,
+                        len(decrypted),
+                        decrypted,
+                    )
+                )
+                assert decrypted != secret
+                assert len(decrypted) <= len(secret)
+
+                try:
+                    alt_mnemonic = bip39.mnemonic_from_bytes(decrypted)
+                    alt_seed = bip39.mnemonic_to_seed(alt_mnemonic)
+                    alt_bip32 = bip32.HDKey.from_seed(alt_seed)
+                    fmt = " would load bip39 mnemonic: {}\n w/ bip32 fingerprint: {}"
+                    print(fmt.format(alt_mnemonic, alt_bip32.my_fingerprint.hex()))
+                    break
+                except:
+                    pass
+
+        assert 0

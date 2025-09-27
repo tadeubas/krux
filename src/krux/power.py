@@ -42,6 +42,7 @@ class PowerManager:
             self.pmu.enable_adcs(True)
             if kboard.is_m5stickv:
                 self.pmu.enable_pek_button_monitor()
+            kboard.has_battery = self.has_battery()
         except Exception as e:
             print(e)
 
@@ -59,6 +60,7 @@ class PowerManager:
 
     def battery_charge_remaining(self):
         """Returns the state of charge of the device's battery"""
+        charge = 1.0
         mv = int(self.pmu.get_battery_voltage())
         if kboard.is_amigo:
             charge = max(0, (mv - 3394.102415024943) / 416.73204356)

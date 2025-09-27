@@ -7,16 +7,12 @@ Make sure your device is being detected and serial ports are being mounted by ru
 ```bash
 ls /dev/ttyUSB*
 ```
-Expect one port to be listed for devices like M5StickV and Maix Dock `/dev/ttyUSB0`, and two ports for Maix Amigo and Maix Bit `/dev/ttyUSB0  /dev/ttyUSB1`.
+Expect one port to be listed for devices like M5StickV and Maix Dock `/dev/ttyUSB0`, and two ports for Maix Amigo `/dev/ttyUSB0  /dev/ttyUSB1`.
 
 If you don't see them, your OS may not be loading the correct drivers to create the serial ports to connect to. Ubuntu has a known bug where the `brltty` driver "kidnaps" serial devices. You can solve this problem by removing it:
 ```bash
 sudo apt-get remove brltty
 ```
-
-### M5StickV device not being recognized and charged?
-
-M5StickV's USB-C port lacks pull up resistors required for it to be recognized and powered by host (computer) USB-C ports. If you don't have an USB-A available, you can use a USB hub connected between your computer's USB-C and M5StickV.
 
 ### Device not charging or being recognized?
 
@@ -30,8 +26,11 @@ Your device should charge and turn on when connected to a USB-A port, even if it
 
 **USB-C:**
 
-#### WonderMV
-- WonderMV devices will not be detected or powered on when connected directly to USB-C output ports on computers or chargers. Please use a USB hub or a USB‑C–to–USB‑A adapter for proper detection and powering.
+### M5StickV, WonderMV
+
+----8<----
+usb-c-pull-up-resistor.en.txt
+----8<----
 
 #### Maix Amigo, Cube
 - If the device is turned off and connected to a USB-C port, it should turn on and start charging. You can turn it off again, and it will continue to charge.
@@ -74,7 +73,7 @@ If the buttons on keypad input screens appear to be in the wrong order, this mig
 
 If the colors displayed on the interface themes or camera feed are incorrect, you can try the following options:
 
-- **Inverted Colors**:  If, for example, the background color is white when it should be black, go to **Settings -> Hardware -> Display** and toggle `Inverted Colors`.
+- **Inverted Colors**: If, for example, the background color is white when it should be black, go to **Settings -> Hardware -> Display** and toggle `Inverted Colors`.
 
 - **BGR Colors**: If, for example, you are using the Orange theme, and instead of orange the colors appear bluish, **Settings -> Hardware -> Display** and toggle `BGR Colors` in the display settings.
 
@@ -87,7 +86,7 @@ If the colors displayed on the interface themes or camera feed are incorrect, yo
 
         If, after the step (1), the screen turns black and you don't see anything, don't panic, don't press any button, just wait 5 seconds. After 5 seconds the device will automatically reboot with the previous `LCD Type` setting meaning you should not change this setting and maybe try again with `Inverted Colors` and `BGR Colors` only.
 
-        If you pressed `PREVIOUS` (UP) and Krux saved the wrong `LCD Type` setting, you will have to remove all stored settings to see the screen working again. If settings were on SD, remove it from the device and edit or delete the settings manually. If settings were on device's internal memory you will have to wipe it's entire flash memory. You can use the [Krux-Installer -> Wipe device feature](./getting-started/installing/from-gui/usage.md/#wipe-device) or type a command on terminal with the device connected. On Linux for example, go to the folder where you downloaded the Krux firmware and use *Ktool* to fully wipe your device (on other OS use `ktool-win.exe` or `ktool-mac`):
+        If you pressed `PREVIOUS` (UP) and Krux saved the wrong `LCD Type` setting, you will have to remove all stored settings to see the screen working again. If settings were on SD, remove it from the device and edit or delete the settings manually. If settings were on device's internal memory you will have to wipe it's entire flash memory. You can use the [Krux-Installer -> Wipe device feature](getting-started/installing/from-gui/usage.md/#wipe-device) or type a command on terminal with the device connected. On Linux for example, go to the folder where you downloaded the Krux firmware and use *Ktool* to fully wipe your device (on other OS use `ktool-win.exe` or `ktool-mac`):
 
         ```bash
         ./ktool-linux -B goE -b 1500000 -E
@@ -113,9 +112,9 @@ You can also install [MaixPy IDE](https://dl.sipeed.com/shareURL/MAIX/MaixPy/ide
     <source src="../img/cam-adjust-pliers.mp4" type="video/mp4"></source>
 </video>
 
-The image on the screen shows exactly what Krux sees through its camera. If the QR code appears blurry, the camera lens may be out of focus. You can adjust the focus by gently rotating the lens clockwise or counterclockwise until the image becomes clear. Note that the lens may have been secured at the factory with a drop of glue, which can make the initial adjustment difficult. To rotate the plastic lens ring, use your fingertip, tweezers, or small precision pliers (preferably covered with electrical tape to avoid damage). After the first adjustment, future focusing should be much easier.
+The screen displays exactly what Krux sees through its camera. If the QR code looks blurry, the lens may be out of focus. You can correct this by gently rotating the lens: turn it **counterclockwise (unscrewing to reduce focus distance)** or **clockwise (screwing to increase focus distance)** until the image sharpens. Be aware that the factory may have secured the lens with a small drop of glue, making the first adjustment a bit harder. To rotate the plastic lens ring, use your fingertip, tweezers, or small precision pliers (ideally wrapped with electrical tape to prevent scratches). Once adjusted, future focusing should be much easier.
 
-If you've already adjusted the lens, the issue may be the distance between the device and the QR code. Start by holding the device as close to the code as possible, then slowly pull it back until the entire QR code is visible on the screen. If the QR code appears sharp and clear, Krux should recognize it quickly and provide immediate feedback.
+If the lens is already adjusted, the problem may be the distance to the QR code. Hold the device close to the code, then slowly pull it back until the full QR code fits on the screen. Once the code appears sharp and clear, Krux should detect it quickly and respond immediately.
 
 ----8<----
 camera-scan-tips.en.txt
@@ -132,7 +131,7 @@ For BIP39 mnemonics:
 - BIP39 Plaintext (Used by Krux and [https://iancoleman.io/bip39/](https://iancoleman.io/bip39/))
 - SeedSigner [SeedQR and CompactSeedQR](https://github.com/SeedSigner/seedsigner/blob/dev/docs/seed_qr/README.md) Formats
 - [UR Type `crypto-bip39`](https://github.com/BlockchainCommons/Research/blob/master/papers/bcr-2020-006-urtypes.md)
-- Encrypted QR Code (Format created by Krux, [more information here](getting-started/features/encrypted-mnemonics.md))
+- Encrypted QR Code (Format created by Krux, [more information here](getting-started/features/encryption/encryption.md/#regarding-bip39-mnemonics))
 
 For Wallet output descriptor:
 
@@ -169,5 +168,6 @@ Starting from version 23.09.0, Krux supports SD card hot plugging. If you are us
 It seems WonderMV has a hardware design issue: It lacks a decoupling capacitor in the circuitry that powers the SD card. Some SD cards may cause the supply voltage to drop when inserted, triggering a reboot.
 
 **Workarounds:**
+
 - Insert your SD card before turning on the device, for example, when signing PSBTs, insert the SD card containing the unsigned PSBT before powering WonderMV on and loading your key.
 - Try different SD cards, as some require less current and won't cause the device to reboot.

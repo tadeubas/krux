@@ -109,16 +109,9 @@ class MnemonicStorage:
             return self._deprecated_decrypt(key, mnemonic_id, iterations, mode, data)
         return None
 
-    def store_encrypted(self, key, mnemonic_id, mnemonic, sd_card=False, i_vector=None):
-        """Saves the encrypted mnemonic on a file, returns True if successful"""
-        iterations = Settings().encryption.pbkdf2_iterations
-        encryptor = kef.Cipher(key, mnemonic_id, iterations)
-        mode_name = Settings().encryption.version
-        plain = bip39.mnemonic_to_bytes(mnemonic)
-        version = kef.suggest_versions(plain, mode_name)[0]
-        encrypted = encryptor.encrypt(plain, version, i_vector)
-        envelope = kef.wrap(mnemonic_id, version, iterations, encrypted)
-        b64_kef = base_encode(envelope, 64)
+    def store_encrypted_kef(self, mnemonic_id, kef_envelope, sd_card=False):
+        """Saves a KEF envelope directly to storage, returns True if successful"""
+        b64_kef = base_encode(kef_envelope, 64)
         mnemonics = {}
         if sd_card:
             # load current MNEMONICS_FILE
@@ -211,7 +204,7 @@ class EncryptedQRCode:
                 "Encrypted QR Code:",
                 "ID: " + displayable_id,
                 "Version: " + version_name,
-                "Key iter.: " + str(self.iterations),
+                "PBKDF2 iter.: " + str(self.iterations),
             ]
         )
 

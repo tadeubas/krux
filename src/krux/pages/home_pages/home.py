@@ -34,12 +34,14 @@ from ...qr import FORMAT_NONE, FORMAT_PMOFN
 from ...krux_settings import t, Settings
 from ...format import replace_decimal_separator
 from ...key import TYPE_SINGLESIG
+from ...kboard import kboard
 
 
 class Home(Page):
     """Home is the main menu page of the app"""
 
     def __init__(self, ctx):
+        shtn_reboot_label = t("Shutdown") if kboard.has_battery else t("Reboot")
         super().__init__(
             ctx,
             Menu(
@@ -192,10 +194,8 @@ class Home(Page):
                 (t("Message"), self.sign_message),
             ],
         )
-        index, status = submenu.run_loop()
-        if index == submenu.back_index:
-            return MENU_CONTINUE
-        return status
+        submenu.run_loop()
+        return MENU_CONTINUE
 
     def load_psbt(self):
         """Loads a PSBT from camera or SD card"""
@@ -253,7 +253,7 @@ class Home(Page):
         gc.collect()
 
         self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(t("Signing.."))
+        self.ctx.display.draw_centered_text(t("Signing…"))
 
         if index == 1:  # Sign to QR code
             signer.sign()
@@ -294,7 +294,7 @@ class Home(Page):
                             # Write PSBT data directly to the file
                             signer.psbt.write_to(f)
                     self.flash_text(
-                        t("Saved to SD card:") + "\n%s" % psbt_filename,
+                        t("Saved to SD card:") + "\n\n%s" % psbt_filename,
                         highlight_prefix=":",
                     )
                     return MENU_CONTINUE
@@ -456,16 +456,21 @@ class Home(Page):
             self.flash_error(t("Failed to load"))
             return MENU_CONTINUE
 
-        try:
-            from ..encryption_ui import decrypt_kef
-
-            data = decrypt_kef(self.ctx, data)
-        except:
-            pass
+        # DISABLED to avoid false "Decrypt?" on normal PSBTs as KEF
+        # try:
+        #     from ..encryption_ui import decrypt_kef
+        #
+        #     data = decrypt_kef(self.ctx, data)
+        # except KeyError:
+        #     self.flash_error(t("Failed to decrypt"))
+        #     return MENU_CONTINUE
+        # except ValueError:
+        #     # ValueError=not KEF or declined to decrypt
+        #     pass
 
         # PSBT read OK! Will try to sign
         self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(t("Loading.."))
+        self.ctx.display.draw_centered_text(t("Loading…"))
 
         qr_format = FORMAT_PMOFN if qr_format == FORMAT_NONE else qr_format
         from ...psbt import PSBTSigner
@@ -481,7 +486,7 @@ class Home(Page):
             return MENU_CONTINUE
 
         self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(t("Processing.."))
+        self.ctx.display.draw_centered_text(t("Processing…"))
         outputs, fee_percent = signer.outputs()
 
         if not self._fees_psbt_warn(fee_percent):

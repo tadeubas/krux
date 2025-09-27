@@ -633,7 +633,10 @@ def test_mnemonic_encrypted_qr(mocker, m5stickv, tdata):
         mocker.MagicMock(return_value=I_VECTOR),
     )
 
+    case_count = 0
     for case in cases:
+        print(case_count)
+        case_count += 1
         ctx = create_ctx(mocker, case[2], case[0], case[1])
         mnemonics = MnemonicsView(ctx)
 
@@ -689,6 +692,8 @@ def test_print_mnemonic_other_words(mocker, amigo, tdata):
         ]
     )
 
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQ)
+
 
 def test_print_mnemonic_numbers_decimal(mocker, amigo, tdata):
     from krux.pages.home_pages.mnemonic_backup import MnemonicsView
@@ -734,6 +739,8 @@ def test_print_mnemonic_numbers_decimal(mocker, amigo, tdata):
             mocker.call("8:1332    16:918     24:1076\n"),
         ]
     )
+
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQ)
 
 
 def test_print_mnemonic_numbers_hex(mocker, amigo, tdata):
@@ -783,6 +790,8 @@ def test_print_mnemonic_numbers_hex(mocker, amigo, tdata):
         ]
     )
 
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQ)
+
 
 def test_print_mnemonic_numbers_oct(mocker, amigo, tdata):
     from krux.pages.home_pages.mnemonic_backup import MnemonicsView
@@ -830,3 +839,5 @@ def test_print_mnemonic_numbers_oct(mocker, amigo, tdata):
             mocker.call("8:2464    16:1626    24:2064\n"),
         ]
     )
+
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQ)

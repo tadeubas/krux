@@ -317,7 +317,7 @@ def upgrade():
         display.clear()
         display.draw_centered_text(text, highlight_prefix=highlight_prefix)
 
-    status_text(t("New firmware detected.") + "\n\n" + t("Verifying.."))
+    status_text(t("New firmware detected.") + "\n\n" + t("Verifying…"))
 
     # Validate curr bootloader
     boot_config_sector = flash.read(
@@ -404,7 +404,7 @@ def upgrade():
         with open(firmware_path, "rb", buffering=0) as firmware_file:
             write_data(
                 lambda pct: status_text(
-                    t("Processing..") + "1/3" + "\n\n%d%%" % int(pct * 100)
+                    t("Processing…") + "1/3" + "\n\n%d%%" % int(pct * 100)
                 ),
                 new_address,
                 firmware_file,
@@ -416,7 +416,7 @@ def upgrade():
 
         write_data(
             lambda pct: status_text(
-                t("Processing..") + "2/3" + "\n\n%d%%" % int(pct * 100)
+                t("Processing…") + "2/3" + "\n\n%d%%" % int(pct * 100)
             ),
             BACKUP_BOOT_CONFIG_SECTOR_ADDRESS,
             io.BytesIO(boot_config_sector),
@@ -429,7 +429,7 @@ def upgrade():
         )
         write_data(
             lambda pct: status_text(
-                t("Processing..") + "3/3" + "\n\n%d%%" % int(pct * 100)
+                t("Processing…") + "3/3" + "\n\n%d%%" % int(pct * 100)
             ),
             MAIN_BOOT_CONFIG_SECTOR_ADDRESS,
             io.BytesIO(new_boot_config_sector),
@@ -448,5 +448,5 @@ def upgrade():
         os.remove(firmware_path)
         os.remove(firmware_path + ".sig")
 
-    display.flash_text(t("Shutting down.."))
+    display.flash_text(t("Shutting down…"))
     return True

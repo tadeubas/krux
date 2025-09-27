@@ -99,10 +99,7 @@ class SeedQRView(Page):
         max_width = self.ctx.display.width()
         if zoom:
             max_width -= DEFAULT_PADDING
-            if self.qr_size == 21:
-                qr_size = 7
-            else:
-                qr_size = 5
+            qr_size = self.region_size
             offset_x = 0
             offset_y = 0
             scale = max_width // qr_size
@@ -349,7 +346,7 @@ class SeedQRView(Page):
                 import lcd
 
                 self.ctx.display.clear()
-                self.ctx.display.draw_centered_text(t("Processing.."))
+                self.ctx.display.draw_centered_text(t("Processing…"))
 
                 code, size = self.add_frame(self.code, self.qr_size)
                 raw_image = image.Image(size=(size, size))
@@ -379,7 +376,8 @@ class SeedQRView(Page):
 
                 bmp_img.save(SDHandler.PATH_STR % new_filename)
                 self.flash_text(
-                    t("Saved to SD card:") + "\n%s" % new_filename, highlight_prefix=":"
+                    t("Saved to SD card:") + "\n\n%s" % new_filename,
+                    highlight_prefix=":",
                 )
         except:
             self.flash_text(t("SD card not detected."))
@@ -390,7 +388,7 @@ class SeedQRView(Page):
         from .file_operations import SaveFile
 
         self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(t("Processing.."))
+        self.ctx.display.draw_centered_text(t("Processing…"))
 
         code, size = self.add_frame(self.code, self.qr_size)
 
@@ -515,12 +513,12 @@ class SeedQRView(Page):
             label = self.title
         else:
             label = ""
-        if transcript_tools and self.ctx.input.touch is not None:
+        if transcript_tools and kboard.has_touchscreen:
             label += "\n" + t("Swipe to change mode")
         mode = 0
         while True:
             button = None
-            while button not in (SWIPE_DOWN, SWIPE_UP):
+            while True:
 
                 def toggle_brightness():
                     if self.qr_foreground == WHITE:
@@ -541,11 +539,15 @@ class SeedQRView(Page):
                         highlight_function(label, y_offset)
                 button = self.ctx.input.wait_for_button()
                 if transcript_tools:
-                    if button in (BUTTON_PAGE, SWIPE_LEFT):  # page, swipe
+                    if button in (BUTTON_PAGE, SWIPE_UP, SWIPE_LEFT):  # page, swipe
                         mode += 1
                         mode %= 5
                         self.lr_index = 0
-                    elif button in (BUTTON_PAGE_PREV, SWIPE_RIGHT):  # page, swipe
+                    elif button in (
+                        BUTTON_PAGE_PREV,
+                        SWIPE_DOWN,
+                        SWIPE_RIGHT,
+                    ):  # page, swipe
                         mode -= 1
                         mode %= 5
                         self.lr_index = 0
@@ -556,7 +558,7 @@ class SeedQRView(Page):
                         self.lr_index += 1
                     else:
                         if not (button == BUTTON_TOUCH and mode == TRANSCRIBE_MODE):
-                            button = SWIPE_DOWN  # leave
+                            break  # leave
                 if mode == LINE_MODE:
                     self.lr_index %= self.qr_size
                 elif mode in (REGION_MODE, ZOOMED_R_MODE):
