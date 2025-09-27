@@ -188,7 +188,7 @@ def check_signature(pubkey, sig, file_hash):
     """Return if signature of the file_hash is valid for the pubkey"""
 
     try:
-        # Parse, serialize, and reparse to ensure signature is compact prior to verification
+        # embit (via libsecp256k1) already enforces signature is compact
         sig = ec.Signature.parse(sig)
         if not pubkey.verify(sig, file_hash):
             return False

@@ -59,7 +59,7 @@ class Home(Page):
                     (t("Wallet"), self.wallet),
                     (t("Address"), self.addresses_menu),
                     (t("Sign"), self.sign),
-                    self.shutdown_menu_item(ctx),
+                    (shtn_reboot_label, self.shutdown),
                 ],
                 back_label=None,
             ),

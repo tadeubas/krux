@@ -239,7 +239,7 @@ elif [ "$1" == "sign" ]; then
         else
             sig_bin=$file.sig
             # ECDSA signatures using openssl vary in size (70–72 bytes) due to DER encoding of r and s values.
-            # Krux uses secp256k1 that works only with 70 bytes
+            # Krux uses secp256k1, which enforces strict canonical DER, expecting signatures in the minimal 70-byte form.
 
             # Loop until signature is exactly 70 bytes
             while true; do
