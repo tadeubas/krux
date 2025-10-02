@@ -25,9 +25,9 @@ import os
 os.chdir("/")
 
 VERSION = "1.0"
-NAME = "Test app"
+NAME = "Example"
 
-print("Print executed inside kapp.py")
+print("Print executed inside kapp", NAME)
 
 from krux.pages import Page, Menu, MENU_CONTINUE
 from krux.krux_settings import t
@@ -82,7 +82,8 @@ class Kapp(Page):
 
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(
-            "Krux app\n" + NAME + "\n\n" + t("Version") + "\n%s" % VERSION
+            "Kapp %s\n%s: %s\n\n" % (NAME, t("Version"), VERSION)
+            + t("Use this as a model to implement new Kapps")
         )
         self.ctx.input.wait_for_button()
         return MENU_CONTINUE
@@ -90,6 +91,6 @@ class Kapp(Page):
 
 def run(ctx):
     """Runs this kapp"""
-    print("run() func executed on kapp.py")
+    print("run() function inside kapp", NAME)
 
     Kapp(ctx).run()
