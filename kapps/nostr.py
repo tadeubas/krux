@@ -26,7 +26,7 @@ import os
 os.chdir("/")
 
 VERSION = "0.1"
-NAME = "Nostr app"
+NAME = "Nostr"
 
 from krux.pages import Menu, MENU_CONTINUE, MENU_EXIT, LETTERS
 from krux.pages.login import Login, DIGITS_HEX, DIGITS
@@ -36,9 +36,12 @@ from krux.display import (
     STATUS_BAR_HEIGHT,
     FONT_HEIGHT,
     BOTTOM_PROMPT_LINE,
+    DEFAULT_PADDING,
 )
 from krux.themes import theme
 from krux.kboard import kboard
+from embit import bech32, bip32, bip39
+from binascii import hexlify
 
 
 NSEC_SIZE = 63
@@ -51,6 +54,7 @@ PUB_HEX = "pub-hex"
 HEX = "hex"
 MNEMONIC = "mnemonic"
 DEFAULT_MNEMONIC = "action action action action action action action action action action action action"
+NIP06_PATH = "m/44h/1237h/0h/0/0"
 
 FILE_SUFFIX = "-nostr"
 FILE_EXTENSION = ".txt"
@@ -61,20 +65,85 @@ class NostrKey:
     def __init__(self):
         self.update()
 
-    def update(self, key="none", value=None):
+    def update(self, key="", value=None):
+        print("update", key, value)
         self.key = key
         self.value = value
 
-    def loaded(self):
-        return self.key in (NSEC, PRIV_HEX, MNEMONIC)
+    def load_nsec(self, nsec):
+        """Load a key in nsec format"""
+        _encoding, hrp, _data = bech32.bech32_decode(nsec)
+        if hrp != "nsec":
+            raise ValueError("Not an nsec key!")
+        self.update(NSEC, nsec)
 
-    def loaded_mnemonic(self):
-        print("loaded_mnemonic", self.key, self.value)
-        return self.key == MNEMONIC
+    def load_hex(self, hex):
+        """Load a key in hex format"""
+        if len(hex) != 64:
+            raise ValueError("Hex key must be 64 chars!")
+        # try decoding
+        bytes.fromhex(hex)
+        self.update(HEX, hex)
+
+    def load_mnemonic(self, mnemonic):
+        """Load a mnemonic, will assume it is valid"""
+        self.update(MNEMONIC, mnemonic)
+
+    def loaded(self):
+        return self.key != ""
+    
+    @classmethod
+    def _encode_nostr_key(cls, bits, version):
+        from embit import bech32
+
+        converted_bits = bech32.convertbits(bits, 8, 5)
+        return bech32.bech32_encode(bech32.Encoding.BECH32, version, converted_bits)
+
+    def get_hex(self):
+        """Return key in hex format"""
+        if self.key == HEX:
+            return self.value
+        if self.key == NSEC:
+            _encoding, _hrp, data = bech32.bech32_decode(self.value)
+            data = bech32.convertbits(data, 5, 8, False)
+            return bytes(data).hex()
+        # is mnemonic
+        nostr_root = self._mnemonic_to_nip06_key()
+        return hexlify(nostr_root.secret).decode()
+    
+    def get_nsec(self):
+        """Return key in nsec format"""
+        if self.key == NSEC:
+            return self.value
+        if self.key == HEX:
+            return NostrKey._encode_nostr_key(bytes.fromhex(self.value), NSEC)
+        # is mnemonic
+        nostr_root = self._mnemonic_to_nip06_key()
+        return NostrKey._encode_nostr_key(nostr_root.secret, NSEC)
+    
+    def get_mnemonic(self):
+        """Return loaded mnemonic"""
+        if self.key != MNEMONIC:
+            raise ValueError("Load mnemonic first!")
+        return self.value
+    
+    def _mnemonic_to_nip06_key(self):
+        root = bip32.HDKey.from_seed(bip39.mnemonic_to_seed(self.value))
+        return root.derive(NIP06_PATH)
 
 
 class KMenu(Menu):
     """Customizes the page's menu"""
+
+    def __init__(self, ctx, menu, offset=None, disable_statusbar=False, back_label="Back", back_status=lambda: MENU_EXIT,):
+        super().__init__(ctx, menu, offset, disable_statusbar, back_label, back_status)
+        self.disable_statusbar = False
+        if offset is None:
+            self.menu_offset = STATUS_BAR_HEIGHT
+        else:
+            # Always disable status bar if menu has non standard offset
+            self.disable_statusbar = True
+            self.menu_offset = offset if offset >= 0 else DEFAULT_PADDING
 
     def draw_wallet_indicator(self):
         """Customize the top bar"""
@@ -102,10 +171,11 @@ class KMenu(Menu):
 
 
 class Klogin(Login):
-    """The page to insert the Key"""
+    """Page to load a Nostr the Key"""
 
     def __init__(self, ctx):
         super().__init__(ctx)
+        shtn_reboot_label = t("Shutdown") if kboard.has_battery else t("Reboot")
         self.menu = KMenu(
             ctx,
             [
@@ -113,7 +183,7 @@ class Klogin(Login):
                 (t("New Mnemonic"), self.new_key),
                 (t("Load nsec or hex"), self.load_nsec),
                 (t("About"), self.about),
-                self.shutdown_menu_item(ctx),
+                (shtn_reboot_label, self.shutdown),
             ],
             back_label=None,
         )
@@ -267,7 +337,8 @@ class Klogin(Login):
 
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(
-            "Krux app\n" + NAME + "\n\n" + t("Version") + "\n%s" % VERSION
+            "Kapp %s\n%s: %s\n\n" % (NAME, t("Version"), VERSION)
+            + t("Load or create a key to sign events. Works with NIP-06 and NIP-19.")
         )
         self.ctx.input.wait_for_button()
         return MENU_CONTINUE
@@ -279,6 +350,7 @@ class Khome(Home):
     def __init__(self, ctx):
         super().__init__(ctx)
 
+        shtn_reboot_label = t("Shutdown") if kboard.has_battery else t("Reboot")
         self.menu = KMenu(
             ctx,
             [
@@ -294,7 +366,7 @@ class Khome(Home):
                 (t("Nostr Keys"), self.nostr_keys),
                 ("BIP85", self.bip85),
                 (t("Sign Event"), self.sign_message),
-                self.shutdown_menu_item(ctx),
+                (shtn_reboot_label, self.shutdown),
             ],
             back_label=None,
         )
@@ -446,8 +518,5 @@ def run(ctx):
         while True:
             if not Khome(ctx).run():
                 break
-
-    print("Exited!!!!")
-
 
 nostrKey = NostrKey()

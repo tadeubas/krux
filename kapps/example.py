@@ -31,13 +31,23 @@ print("Print executed inside kapp", NAME)
 
 from krux.pages import Page, Menu, MENU_CONTINUE
 from krux.krux_settings import t
-from krux.display import STATUS_BAR_HEIGHT, FONT_HEIGHT
+from krux.display import STATUS_BAR_HEIGHT, FONT_HEIGHT, DEFAULT_PADDING
 from krux.themes import theme
 from krux.kboard import kboard
 
 
 class KMenu(Menu):
     """Customizes the page's menu"""
+
+    def __init__(self, ctx, menu, offset=None, disable_statusbar=False, back_label="Back", back_status=lambda: MENU_EXIT,):
+        super().__init__(ctx, menu, offset, disable_statusbar, back_label, back_status)
+        self.disable_statusbar = False
+        if offset is None:
+            self.menu_offset = STATUS_BAR_HEIGHT
+        else:
+            # Always disable status bar if menu has non standard offset
+            self.disable_statusbar = True
+            self.menu_offset = offset if offset >= 0 else DEFAULT_PADDING
 
     def draw_wallet_indicator(self):
         """Customize the top bar"""
