@@ -74,8 +74,8 @@ class NostrKey:
     def load_nsec(self, nsec: str):
         """Load a key in nsec format"""
         if len(nsec) != NSEC_SIZE:
-            ValueError("NSEC key must be %d chars!" % NSEC_SIZE)
-        _encoding, hrp, _data = bech32.bech32_decode(nsec)
+            raise ValueError("NSEC key must be %d chars!" % NSEC_SIZE)
+        _, hrp, _ = bech32.bech32_decode(nsec)
         if hrp != NSEC:
             raise ValueError("Not an nsec key!")
         self.set(NSEC, nsec)
@@ -94,26 +94,29 @@ class NostrKey:
 
     def is_loaded(self):
         return self.key != ""
-    
+
+    def is_mnemonic(self):
+        return self.key == MNEMONIC
+
     @staticmethod
     def _encode_bech32(data: bytes, version: str):
         """Encode bytes into a bech32 string with given version"""
         converted_data = bech32.convertbits(data, 8, 5)
         return bech32.bech32_encode(bech32.Encoding.BECH32, version, converted_data)
-    
+
     @staticmethod
     def _decode_bech32(bech: str):
         """Decode a bech32 string returning bytes."""
-        _enc, _hrp, data = bech32.bech32_decode(bech)
+        _, _, data = bech32.bech32_decode(bech)
         if not data:
             raise ValueError("Invalid bech32 data")
         raw = bech32.convertbits(data, 5, 8, False)
         return bytes(raw)
-    
+
     def _mnemonic_to_nip06_key(self):
         root = bip32.HDKey.from_seed(bip39.mnemonic_to_seed(self.value))
         return root.derive(NIP06_PATH)
-    
+
     def _get_pub_xonly(self):
         hex_key = self.value if self.key == HEX else self.get_hex()
         priv = PrivateKey(bytes.fromhex(hex_key))
@@ -128,7 +131,7 @@ class NostrKey:
         # is mnemonic
         nostr_root = self._mnemonic_to_nip06_key()
         return hexlify(nostr_root.secret).decode()
-    
+
     def get_nsec(self):
         """Return key in nsec format"""
         if self.key == NSEC:
@@ -138,13 +141,13 @@ class NostrKey:
         # is mnemonic
         nostr_root = self._mnemonic_to_nip06_key()
         return NostrKey._encode_bech32(nostr_root.secret, NSEC)
-    
+
     def get_mnemonic(self):
         """Return loaded mnemonic"""
         if self.key != MNEMONIC:
             raise ValueError("Load mnemonic first!")
         return self.value
-    
+
     def get_pub_hex(self):
         if self.key in (HEX, NSEC):
             pub_bytes = self._get_pub_xonly()
@@ -165,7 +168,15 @@ class NostrKey:
 class KMenu(Menu):
     """Customizes the page's menu"""
 
-    def __init__(self, ctx, menu, offset=None, disable_statusbar=False, back_label="Back", back_status=lambda: MENU_EXIT,):
+    def __init__(
+        self,
+        ctx,
+        menu,
+        offset=None,
+        disable_statusbar=False,
+        back_label="Back",
+        back_status=lambda: MENU_EXIT,
+    ):
         super().__init__(ctx, menu, offset, disable_statusbar, back_label, back_status)
         self.disable_statusbar = False
         if offset is None:
@@ -178,9 +189,9 @@ class KMenu(Menu):
     def draw_wallet_indicator(self):
         """Customize the top bar"""
         text = NAME
-        if nostrKey.loaded_mnemonic():
+        if nostrKey.is_mnemonic():
             text = self.ctx.wallet.key.fingerprint_hex_str(True)
-        elif nostrKey.loaded():
+        elif nostrKey.is_loaded():
             text = nostrKey.key.upper()
 
         if not kboard.is_m5stickv:
@@ -293,11 +304,6 @@ class Klogin(Login):
             data = self.capture_from_keypad(title, [DIGITS_HEX])
 
         data = str(data)
-        if len(data) > HEX_SIZE:
-            raise ValueError("Maximum length exceeded (%s)" % HEX_SIZE)
-        if version == NSEC and len(data) > NSEC_SIZE:
-            raise ValueError("Maximum length exceeded (%s)" % NSEC_SIZE)
-
         self.ctx.display.clear()
         self.ctx.display.draw_hcentered_text(t("Private Key") + ":\n\n" + data)
         if not self.prompt(
@@ -306,12 +312,7 @@ class Klogin(Login):
         ):
             return MENU_CONTINUE
 
-        try:
-            if not self._load_nostr_priv_key(data):
-                raise ValueError()
-        except:
-            self.flash_error(t("Failed to load"))
-            return MENU_CONTINUE
+        self._load_nostr_priv_key(data)
 
         return MENU_EXIT
 
@@ -346,16 +347,11 @@ class Klogin(Login):
         return MENU_EXIT
 
     def _load_nostr_priv_key(self, data):
-        if data.startswith(NSEC) and len(data) == NSEC_SIZE:
-            nostrKey.update(NSEC, data)
-            self._load_fake_mnemonic()
-            return True
-        if len(data) == HEX_SIZE:
-            nostrKey.update(PRIV_HEX, data)
-            self._load_fake_mnemonic()
-            return True
-
-        return False
+        if data.startswith(NSEC):
+            nostrKey.load_nsec(data)
+        else:
+            nostrKey.load_hex(data)
+        self._load_fake_mnemonic()
 
     def _load_fake_mnemonic(self):
         from krux.wallet import Wallet
@@ -548,5 +544,6 @@ def run(ctx):
         while True:
             if not Khome(ctx).run():
                 break
+
 
 nostrKey = NostrKey()
