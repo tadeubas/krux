@@ -41,6 +41,7 @@ from krux.display import (
 from krux.themes import theme
 from krux.kboard import kboard
 from embit import bech32, bip32, bip39
+from embit.ec import PrivateKey
 from binascii import hexlify
 
 
@@ -63,50 +64,67 @@ FILE_EXTENSION = ".txt"
 class NostrKey:
 
     def __init__(self):
-        self.update()
+        self.set()
 
-    def update(self, key="", value=None):
-        print("update", key, value)
+    def set(self, key="", value=None):
+        print("set", key, value)
         self.key = key
         self.value = value
 
-    def load_nsec(self, nsec):
+    def load_nsec(self, nsec: str):
         """Load a key in nsec format"""
+        if len(nsec) != NSEC_SIZE:
+            ValueError("NSEC key must be %d chars!" % NSEC_SIZE)
         _encoding, hrp, _data = bech32.bech32_decode(nsec)
-        if hrp != "nsec":
+        if hrp != NSEC:
             raise ValueError("Not an nsec key!")
-        self.update(NSEC, nsec)
+        self.set(NSEC, nsec)
 
-    def load_hex(self, hex):
+    def load_hex(self, hex: str):
         """Load a key in hex format"""
-        if len(hex) != 64:
-            raise ValueError("Hex key must be 64 chars!")
+        if len(hex) != HEX_SIZE:
+            raise ValueError("Hex key must be %d chars!" % HEX_SIZE)
         # try decoding
         bytes.fromhex(hex)
-        self.update(HEX, hex)
+        self.set(HEX, hex)
 
-    def load_mnemonic(self, mnemonic):
+    def load_mnemonic(self, mnemonic: str):
         """Load a mnemonic, will assume it is valid"""
-        self.update(MNEMONIC, mnemonic)
+        self.set(MNEMONIC, mnemonic)
 
-    def loaded(self):
+    def is_loaded(self):
         return self.key != ""
     
-    @classmethod
-    def _encode_nostr_key(cls, bits, version):
-        from embit import bech32
-
-        converted_bits = bech32.convertbits(bits, 8, 5)
-        return bech32.bech32_encode(bech32.Encoding.BECH32, version, converted_bits)
+    @staticmethod
+    def _encode_bech32(data: bytes, version: str):
+        """Encode bytes into a bech32 string with given version"""
+        converted_data = bech32.convertbits(data, 8, 5)
+        return bech32.bech32_encode(bech32.Encoding.BECH32, version, converted_data)
+    
+    @staticmethod
+    def _decode_bech32(bech: str):
+        """Decode a bech32 string returning bytes."""
+        _enc, _hrp, data = bech32.bech32_decode(bech)
+        if not data:
+            raise ValueError("Invalid bech32 data")
+        raw = bech32.convertbits(data, 5, 8, False)
+        return bytes(raw)
+    
+    def _mnemonic_to_nip06_key(self):
+        root = bip32.HDKey.from_seed(bip39.mnemonic_to_seed(self.value))
+        return root.derive(NIP06_PATH)
+    
+    def _get_pub_xonly(self):
+        hex_key = self.value if self.key == HEX else self.get_hex()
+        priv = PrivateKey(bytes.fromhex(hex_key))
+        return priv.get_public_key().xonly()
 
     def get_hex(self):
         """Return key in hex format"""
         if self.key == HEX:
             return self.value
         if self.key == NSEC:
-            _encoding, _hrp, data = bech32.bech32_decode(self.value)
-            data = bech32.convertbits(data, 5, 8, False)
-            return bytes(data).hex()
+            return NostrKey._decode_bech32(self.value).hex()
         # is mnemonic
         nostr_root = self._mnemonic_to_nip06_key()
         return hexlify(nostr_root.secret).decode()
@@ -116,10 +134,10 @@ class NostrKey:
         if self.key == NSEC:
             return self.value
         if self.key == HEX:
-            return NostrKey._encode_nostr_key(bytes.fromhex(self.value), NSEC)
+            return NostrKey._encode_bech32(bytes.fromhex(self.value), NSEC)
         # is mnemonic
         nostr_root = self._mnemonic_to_nip06_key()
-        return NostrKey._encode_nostr_key(nostr_root.secret, NSEC)
+        return NostrKey._encode_bech32(nostr_root.secret, NSEC)
     
     def get_mnemonic(self):
         """Return loaded mnemonic"""
@@ -127,9 +145,21 @@ class NostrKey:
             raise ValueError("Load mnemonic first!")
         return self.value
     
-    def _mnemonic_to_nip06_key(self):
-        root = bip32.HDKey.from_seed(bip39.mnemonic_to_seed(self.value))
-        return root.derive(NIP06_PATH)
+    def get_pub_hex(self):
+        if self.key in (HEX, NSEC):
+            pub_bytes = self._get_pub_xonly()
+            return pub_bytes.hex()
+        # is mnemonic
+        nostr_root = self._mnemonic_to_nip06_key()
+        return hexlify(nostr_root.xonly()).decode()
+
+    def get_npub(self):
+        if self.key in (HEX, NSEC):
+            pub_bytes = self._get_pub_xonly()
+            return NostrKey._encode_bech32(pub_bytes, NPUB)
+        # is mnemonic
+        nostr_root = self._mnemonic_to_nip06_key()
+        return NostrKey._encode_bech32(nostr_root.xonly(), NPUB)
 
 
 class KMenu(Menu):
