@@ -38,10 +38,9 @@ def test_nostrkey(mocker, m5stickv):
             assert nkey.is_loaded()
 
             if version in (HEX, NSEC):
-                with pytest.raises(ValueError):
-                    nkey.get_mnemonic()
+                assert nkey.is_mnemonic() == False
             else:
-                assert nkey.get_mnemonic() == t[MNEMONIC]
+                assert nkey.is_mnemonic()
 
             assert nkey.get_hex() == t[HEX]
             assert nkey.get_nsec() == t[NSEC]

@@ -28,7 +28,7 @@ os.chdir("/")
 VERSION = "0.1"
 NAME = "Nostr"
 
-from krux.pages import Menu, MENU_CONTINUE, MENU_EXIT, LETTERS
+from krux.pages import Menu, MENU_CONTINUE, MENU_EXIT, LETTERS, ESC_KEY
 from krux.pages.login import Login, DIGITS_HEX, DIGITS
 from krux.pages.home_pages.home import Home
 from krux.krux_settings import t, Settings
@@ -40,8 +40,12 @@ from krux.display import (
 )
 from krux.themes import theme
 from krux.kboard import kboard
+from krux.key import Key, TYPE_SINGLESIG
+from krux.wallet import Wallet
+from krux.settings import MAIN_TXT, ELLIPSIS
 from embit import bech32, bip32, bip39
 from embit.ec import PrivateKey
+from embit.networks import NETWORKS
 from binascii import hexlify
 
 
@@ -54,20 +58,22 @@ NPUB = "npub"
 PUB_HEX = "pub-hex"
 HEX = "hex"
 MNEMONIC = "mnemonic"
-DEFAULT_MNEMONIC = "action action action action action action action action action action action action"
 NIP06_PATH = "m/44h/1237h/0h/0/0"
 
 FILE_SUFFIX = "-nostr"
 FILE_EXTENSION = ".txt"
 
+# -------------------
+
 
 class NostrKey:
+    """Store and convert Nostr keys"""
 
     def __init__(self):
         self.set()
 
     def set(self, key="", value=None):
-        print("set", key, value)
+        """Set key type and its value"""
         self.key = key
         self.value = value
 
@@ -93,9 +99,11 @@ class NostrKey:
         self.set(MNEMONIC, mnemonic)
 
     def is_loaded(self):
+        """If a key was loaded"""
         return self.key != ""
 
     def is_mnemonic(self):
+        """If loaded key is mnemonic"""
         return self.key == MNEMONIC
 
     @staticmethod
@@ -106,7 +114,7 @@ class NostrKey:
 
     @staticmethod
     def _decode_bech32(bech: str):
-        """Decode a bech32 string returning bytes."""
+        """Decode a bech32 string returning bytes"""
         _, _, data = bech32.bech32_decode(bech)
         if not data:
             raise ValueError("Invalid bech32 data")
@@ -142,13 +150,8 @@ class NostrKey:
         nostr_root = self._mnemonic_to_nip06_key()
         return NostrKey._encode_bech32(nostr_root.secret, NSEC)
 
-    def get_mnemonic(self):
-        """Return loaded mnemonic"""
-        if self.key != MNEMONIC:
-            raise ValueError("Load mnemonic first!")
-        return self.value
-
     def get_pub_hex(self):
+        """Return pubkey in hex format"""
         if self.key in (HEX, NSEC):
             pub_bytes = self._get_pub_xonly()
             return pub_bytes.hex()
@@ -157,12 +160,16 @@ class NostrKey:
         return hexlify(nostr_root.xonly()).decode()
 
     def get_npub(self):
+        """Return pubkey in npub format"""
         if self.key in (HEX, NSEC):
             pub_bytes = self._get_pub_xonly()
             return NostrKey._encode_bech32(pub_bytes, NPUB)
         # is mnemonic
         nostr_root = self._mnemonic_to_nip06_key()
         return NostrKey._encode_bech32(nostr_root.xonly(), NPUB)
+
+
+# -------------------
 
 
 class KMenu(Menu):
@@ -186,13 +193,14 @@ class KMenu(Menu):
             self.disable_statusbar = True
             self.menu_offset = offset if offset >= 0 else DEFAULT_PADDING
 
-    def draw_wallet_indicator(self):
+    def new_draw_wallet_indicator(self):
         """Customize the top bar"""
         text = NAME
-        if nostrKey.is_mnemonic():
-            text = self.ctx.wallet.key.fingerprint_hex_str(True)
-        elif nostrKey.is_loaded():
-            text = nostrKey.key.upper()
+        if nostrKey.is_loaded():
+            if nostrKey.is_mnemonic():
+                text = Key.extract_fingerprint(nostrKey.value)
+            else:
+                text = nostrKey.value[:9] + ELLIPSIS
 
         if not kboard.is_m5stickv:
             self.ctx.display.draw_hcentered_text(
@@ -209,6 +217,15 @@ class KMenu(Menu):
                 theme.highlight_color,
                 theme.info_bg_color,
             )
+
+    def new_draw_network_indicator(self):
+        """Don't draw testnet"""
+
+    Menu.draw_wallet_indicator = new_draw_wallet_indicator
+    Menu.draw_network_indicator = new_draw_network_indicator
+
+
+# -------------------
 
 
 class Klogin(Login):
@@ -229,16 +246,11 @@ class Klogin(Login):
             back_label=None,
         )
 
-    # Follow NIP-06 ?
-    # Basic key derivation from mnemonic seed phrase
-    # https://github.com/nostr-protocol/nips/blob/master/06.md
-    # https://github.com/vitorpamplona/amethyst/tree/main/quartz/src/main/java/com/vitorpamplona/quartz/crypto/nip06
-    def _confirm_wallet_key(self, mnemonic):
-        from krux.key import Key
-        from embit.networks import NETWORKS
-        from krux.settings import MAIN_TXT
+    def _load_wallet_key(self, mnemonic):
+        nostrKey.load_mnemonic(mnemonic)
+        self.ctx.wallet = Wallet(Key(mnemonic, TYPE_SINGLESIG, NETWORKS[MAIN_TXT]))
 
-        return Key(mnemonic, False, NETWORKS[MAIN_TXT])
+        return MENU_EXIT
 
     def load_nsec(self):
         """Load nsec or hex menu item"""
@@ -283,38 +295,35 @@ class Klogin(Login):
             return MENU_CONTINUE
 
         try:
-            data_str = data.decode() if not isinstance(data, str) else data
-            if not self._load_nostr_priv_key(data_str):
-                raise ValueError()
+            data = data.decode() if not isinstance(data, str) else data
         except:
             self.flash_error(error_msg)
             return MENU_CONTINUE
 
-        return MENU_EXIT
+        return self._load_nostr_priv_key(data)
 
     def _load_nostr_priv_manual(self, version):
         title = t("Private Key")
 
         data = ""
         if version == NSEC:
-            data = self.capture_from_keypad(
-                title, [LETTERS, DIGITS], starting_buffer=NSEC
-            )
-        else:
-            data = self.capture_from_keypad(title, [DIGITS_HEX])
+            data = NSEC
 
-        data = str(data)
-        self.ctx.display.clear()
-        self.ctx.display.draw_hcentered_text(t("Private Key") + ":\n\n" + data)
-        if not self.prompt(
-            t("Proceed?"),
-            BOTTOM_PROMPT_LINE,
-        ):
-            return MENU_CONTINUE
+        while True:
+            if version == NSEC:
+                data = self.capture_from_keypad(
+                    title, [LETTERS, DIGITS], starting_buffer=data
+                )
+            else:
+                data = self.capture_from_keypad(
+                    title, [DIGITS_HEX], starting_buffer=data
+                )
 
-        self._load_nostr_priv_key(data)
+            if data == ESC_KEY:
+                return MENU_CONTINUE
 
-        return MENU_EXIT
+            if self._load_nostr_priv_key(data) == MENU_EXIT:
+                return MENU_EXIT
 
     def _load_nostr_priv_sd(self):
         from krux.pages.utils import Utils
@@ -327,36 +336,37 @@ class Klogin(Login):
 
         from krux.sd_card import SDHandler
 
-        data = None
-        mnemonic = ""
+        data = ""
         try:
             with SDHandler() as sd:
                 data = sd.read(filename)
 
             data = data.replace("\r\n", "").replace("\n", "")
-            if not self._load_nostr_priv_key(data):
-                raise ValueError()
         except:
             self.flash_error(t("Failed to load"))
             return MENU_CONTINUE
 
-        from krux.wallet import Wallet
+        return self._load_nostr_priv_key(data)
 
-        self.ctx.wallet = Wallet(self._confirm_wallet_key(mnemonic))
+    def _load_nostr_priv_key(self, data: str):
+        data = data.lower()
 
-        return MENU_EXIT
+        self.ctx.display.clear()
+        self.ctx.display.draw_hcentered_text(
+            t("Private Key") + ":\n\n" + data, max_lines=10, highlight_prefix=":"
+        )
+        if not self.prompt(
+            t("Proceed?"),
+            BOTTOM_PROMPT_LINE,
+        ):
+            return MENU_CONTINUE
 
-    def _load_nostr_priv_key(self, data):
         if data.startswith(NSEC):
             nostrKey.load_nsec(data)
         else:
             nostrKey.load_hex(data)
-        self._load_fake_mnemonic()
 
-    def _load_fake_mnemonic(self):
-        from krux.wallet import Wallet
-
-        self.ctx.wallet = Wallet(self._confirm_wallet_key(DEFAULT_MNEMONIC))
+        return MENU_EXIT
 
     def about(self):
         """Handler for the 'about' menu item"""
@@ -368,6 +378,9 @@ class Klogin(Login):
         )
         self.ctx.input.wait_for_button()
         return MENU_CONTINUE
+
+
+# -------------------
 
 
 class Khome(Home):
@@ -385,12 +398,11 @@ class Khome(Home):
                     (
                         self.backup_mnemonic
                         if not Settings().security.hide_mnemonic
-                        and nostrKey.loaded_mnemonic()
+                        and nostrKey.is_mnemonic()
                         else None
                     ),
                 ),
                 (t("Nostr Keys"), self.nostr_keys),
-                ("BIP85", self.bip85),
                 (t("Sign Event"), self.sign_message),
                 (shtn_reboot_label, self.shutdown),
             ],
@@ -399,26 +411,12 @@ class Khome(Home):
 
     def nostr_keys(self):
         """Handler for Nostr Keys menu item"""
-
-        if nostrKey.loaded_mnemonic:
-            if not self.prompt(t("Create NIP06 keys?")):
-                return MENU_CONTINUE
-
-        try:
-            self._get_private_key()
-        except:
-            raise ValueError("This mnemonic cannot be converted, try another")
-
         submenu = Menu(
             self.ctx,
             [
                 (
                     t("Private Key"),
-                    (
-                        None
-                        if Settings().security.hide_mnemonic
-                        else lambda: self.show_key_formats([NSEC, PRIV_HEX])
-                    ),
+                    lambda: self.show_key_formats([NSEC, PRIV_HEX]),
                 ),
                 (t("Public Key"), lambda: self.show_key_formats([NPUB, PUB_HEX])),
             ],
@@ -469,6 +467,7 @@ class Khome(Home):
                 full_nostr_key,
                 offset_y=FONT_HEIGHT,
                 info_box=True,
+                highlight_prefix=":",
             )
             nostr_key_menu.run_loop()
 
@@ -507,32 +506,16 @@ class Khome(Home):
         return "Private Key hex"
 
     def _get_nostr_key(self, version):
-
-        def _encode_nostr_key(bits, version):
-            from embit import bech32
-
-            converted_bits = bech32.convertbits(bits, 8, 5)
-            return bech32.bech32_encode(bech32.Encoding.BECH32, version, converted_bits)
-
-        if version in (NPUB, PUB_HEX):
-            pub_key = self._get_private_key().get_public_key().serialize()[1:]
-            if version == NPUB:
-                return _encode_nostr_key(pub_key, version)
-            return pub_key.hex()
+        if version == NPUB:
+            return nostrKey.get_npub()
         if version == NSEC:
-            return _encode_nostr_key(self._get_mnemonic_bytes(), version)
-        return self._get_mnemonic_bytes().hex()
+            return nostrKey.get_nsec()
+        if version == PRIV_HEX:
+            return nostrKey.get_hex()
+        return nostrKey.get_pub_hex()
 
-    def _get_mnemonic_bytes(self):
-        from embit import bip39
 
-        mnemonic = self.ctx.wallet.key.mnemonic
-        return bip39.mnemonic_to_bytes(mnemonic, ignore_checksum=True)
-
-    def _get_private_key(self):
-        from embit import ec
-
-        return ec.PrivateKey(self._get_mnemonic_bytes())
+# -------------------
 
 
 def run(ctx):
@@ -540,10 +523,11 @@ def run(ctx):
 
     Klogin(ctx).run()
 
-    if ctx.is_logged_in():
-        while True:
-            if not Khome(ctx).run():
-                break
+    if nostrKey.is_loaded():
+        Khome(ctx).run()
 
 
 nostrKey = NostrKey()
+
+# TODO: use try / catch and threat exceptions to avoid error:
+# Could not execute nostr

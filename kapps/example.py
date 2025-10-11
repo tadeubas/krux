@@ -35,6 +35,8 @@ from krux.display import STATUS_BAR_HEIGHT, FONT_HEIGHT, DEFAULT_PADDING
 from krux.themes import theme
 from krux.kboard import kboard
 
+# -------------------
+
 
 class KMenu(Menu):
     """Customizes the page's menu"""
@@ -57,7 +59,7 @@ class KMenu(Menu):
             self.disable_statusbar = True
             self.menu_offset = offset if offset >= 0 else DEFAULT_PADDING
 
-    def draw_wallet_indicator(self):
+    def new_draw_wallet_indicator(self):
         """Customize the top bar"""
         if not kboard.is_m5stickv:
             self.ctx.display.draw_hcentered_text(
@@ -74,6 +76,16 @@ class KMenu(Menu):
                 theme.highlight_color,
                 theme.info_bg_color,
             )
+
+    def new_draw_network_indicator(self):
+        """Don't draw testnet"""
+
+    # Overwrite Menu top bar functions to allow code reuse
+    Menu.draw_wallet_indicator = new_draw_wallet_indicator
+    Menu.draw_network_indicator = new_draw_network_indicator
+
+
+# -------------------
 
 
 class Kapp(Page):
@@ -105,6 +117,9 @@ class Kapp(Page):
         )
         self.ctx.input.wait_for_button()
         return MENU_CONTINUE
+
+
+# -------------------
 
 
 def run(ctx):
