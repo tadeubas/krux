@@ -28,8 +28,8 @@ os.chdir("/")
 VERSION = "0.1"
 NAME = "Nostr"
 
-from krux.pages import Menu, MENU_CONTINUE, MENU_EXIT, LETTERS, ESC_KEY
-from krux.pages.login import Login, DIGITS_HEX, DIGITS
+from krux.pages import Menu, MENU_CONTINUE, MENU_EXIT, LETTERS, DIGITS, ESC_KEY
+from krux.pages.login import Login, DIGITS_HEX
 from krux.pages.home_pages.home import Home
 from krux.krux_settings import t, Settings
 from krux.display import (
@@ -37,6 +37,7 @@ from krux.display import (
     FONT_HEIGHT,
     BOTTOM_PROMPT_LINE,
     DEFAULT_PADDING,
+    FONT_WIDTH,
 )
 from krux.themes import theme
 from krux.kboard import kboard
@@ -47,6 +48,9 @@ from embit import bech32, bip32, bip39
 from embit.ec import PrivateKey
 from embit.networks import NETWORKS
 from binascii import hexlify
+import ujson as json
+import hashlib
+import time
 
 
 NSEC_SIZE = 63
@@ -62,6 +66,374 @@ NIP06_PATH = "m/44h/1237h/0h/0/0"
 
 FILE_SUFFIX = "-nostr"
 FILE_EXTENSION = ".txt"
+
+
+# -------------------
+
+
+# https://github.com/nostr-protocol/nips
+class NostrEvent:
+
+    # https://github.com/nostr-protocol/nips/blob/master/01.md
+    # {
+    #     "id": <32-bytes lowercase hex-encoded sha256 of the serialized event data>,
+    #     "pubkey": <32-bytes lowercase hex-encoded public key of the event creator>,
+    #     "created_at": <unix timestamp in seconds>,
+    #     "kind": <integer between 0 and 65535>,
+    #     "tags": [
+    #         [<arbitrary string>...],
+    #         // ...
+    #     ],
+    #     "content": <arbitrary string>,
+    #     "sig": <64-bytes lowercase hex of the signature of the sha256 hash of the serialized event data, which is the same as the "id" field>
+    # }
+
+    # Kind types
+    KIND_REGULAR = "regular"
+    KIND_REPLACEABLE = "replaceable"
+    KIND_EPHEMERAL = "ephemeral"
+    KIND_ADDRESSABLE = "addressable"
+    UNKNOWN = "unknown"
+
+    # event mandatory attributes
+    PUBKEY = "pubkey"
+    CREATED_AT = "created_at"
+    KIND = "kind"
+    TAGS = "tags"
+    CONTENT = "content"
+    ID = "id"
+
+    KIND_DESC = {
+        0: "User Metadata",
+        1: "Short Text Note",
+        2: "Recommend Relay (deprecated)",
+        3: "Follows",
+        4: "Encrypted Direct Messages",
+        5: "Event Deletion Request",
+        6: "Repost",
+        7: "Reaction",
+        8: "Badge Award",
+        9: "Chat Message",
+        10: "Group Chat Threaded Reply (deprecated)",
+        11: "Thread",
+        12: "Group Thread Reply (deprecated)",
+        13: "Seal",
+        14: "Direct Message",
+        15: "File Message",
+        16: "Generic Repost",
+        17: "Reaction to a website",
+        20: "Picture",
+        21: "Video Event",
+        22: "Short-form Portrait Video Event",
+        30: "internal reference",
+        31: "external web reference",
+        32: "hardcopy reference",
+        33: "prompt reference",
+        40: "Channel Creation",
+        41: "Channel Metadata",
+        42: "Channel Message",
+        43: "Channel Hide Message",
+        44: "Channel Mute User",
+        62: "Request to Vanish",
+        64: "Chess (PGN)",
+        443: "KeyPackage",
+        444: "Welcome Message",
+        445: "Group Event",
+        818: "Merge Requests",
+        1018: "Poll Response",
+        1021: "Bid",
+        1022: "Bid confirmation",
+        1040: "OpenTimestamps",
+        1059: "Gift Wrap",
+        1063: "File Metadata",
+        1068: "Poll",
+        1111: "Comment",
+        1222: "Voice Message",
+        1244: "Voice Message Comment",
+        1311: "Live Chat Message",
+        1337: "Code Snippet",
+        1617: "Patches",
+        1621: "Issues",
+        1622: "Git Replies (deprecated)",
+        "1630-1633": "Status",
+        1971: "Problem Tracker",
+        1984: "Reporting",
+        1985: "Label",
+        1986: "Relay reviews",
+        1987: "AI Embeddings / Vector lists",
+        2003: "Torrent",
+        2004: "Torrent Comment",
+        2022: "Coinjoin Pool",
+        4550: "Community Post Approval",
+        "5000-5999": "Job Request",
+        "6000-6999": "Job Result",
+        7000: "Job Feedback",
+        7374: "Reserved Cashu Wallet Tokens",
+        7375: "Cashu Wallet Tokens",
+        7376: "Cashu Wallet History",
+        7516: "Geocache log",
+        7517: "Geocache proof of find",
+        "9000-9030": "Group Control Events",
+        9041: "Zap Goal",
+        9321: "Nutzap",
+        9467: "Tidal login",
+        9734: "Zap Request",
+        9735: "Zap",
+        9802: "Highlights",
+        10000: "Mute list",
+        10001: "Pin list",
+        10002: "Relay List Metadata",
+        10003: "Bookmark list",
+        10004: "Communities list",
+        10005: "Public chats list",
+        10006: "Blocked relays list",
+        10007: "Search relays list",
+        10009: "User groups",
+        10012: "Favorite relays list",
+        10013: "Private event relay list",
+        10015: "Interests list",
+        10019: "Nutzap Mint Recommendation",
+        10020: "Media follows",
+        10030: "User emoji list",
+        10050: "Relay list to receive DMs",
+        10051: "KeyPackage Relays List",
+        10063: "User server list",
+        10096: "File storage server list (deprecated)",
+        10166: "Relay Monitor Announcement",
+        10312: "Room Presence",
+        10377: "Proxy Announcement",
+        11111: "Transport Method Announcement",
+        13194: "Wallet Info",
+        17375: "Cashu Wallet Event",
+        21000: "Lightning Pub RPC",
+        22242: "Client Authentication",
+        23194: "Wallet Request",
+        23195: "Wallet Response",
+        24133: "Nostr Connect",
+        24242: "Blobs stored on mediaservers",
+        27235: "HTTP Auth",
+        30000: "Follow sets",
+        30001: "Generic lists (deprecated)",
+        30002: "Relay sets",
+        30003: "Bookmark sets",
+        30004: "Curation sets",
+        30005: "Video sets",
+        30007: "Kind mute sets",
+        30008: "Profile Badges",
+        30009: "Badge Definition",
+        30015: "Interest sets",
+        30017: "Create or update a stall",
+        30018: "Create or update a product",
+        30019: "Marketplace UI/UX",
+        30020: "Product sold as an auction",
+        30023: "Long-form Content",
+        30024: "Draft Long-form Content",
+        30030: "Emoji sets",
+        30040: "Curated Publication Index",
+        30041: "Curated Publication Content",
+        30063: "Release artifact sets",
+        30078: "Application-specific Data",
+        30166: "Relay Discovery",
+        30267: "App curation sets",
+        30311: "Live Event",
+        30312: "Interactive Room",
+        30313: "Conference Event",
+        30315: "User Statuses",
+        30388: "Slide Set",
+        30402: "Classified Listing",
+        30403: "Draft Classified Listing",
+        30617: "Repository announcements",
+        30618: "Repository state announcements",
+        30818: "Wiki article",
+        30819: "Redirects",
+        31234: "Draft Event",
+        31388: "Link Set",
+        31890: "Feed",
+        31922: "Date-Based Calendar Event",
+        31923: "Time-Based Calendar Event",
+        31924: "Calendar",
+        31925: "Calendar Event RSVP",
+        31989: "Handler recommendation",
+        31990: "Handler information",
+        32267: "Software Application",
+        34550: "Community Definition",
+        37516: "Geocache listing",
+        38172: "Cashu Mint Announcement",
+        38173: "Fedimint Announcement",
+        38383: "Peer-to-peer Order events",
+        "39000-9": "Group metadata events",
+        39089: "Starter packs",
+        39092: "Media starter packs",
+        39701: "Web bookmarks",
+    }
+
+    # May have different meanings depending on the kind number
+    TAGS_DESC = {
+        "a": "coordinates to an event",
+        "A": "root address",
+        "d": "identifier",
+        "e": "event id (hex)",
+        "E": "root event id",
+        "f": "currency code",
+        "g": "geohash",
+        "h": "group id",
+        "i": "external identity",
+        "I": "root external identity",
+        "k": "kind",
+        "K": "root scope",
+        "l": "label, label namespace, language name",
+        "L": "label namespace",
+        "m": "MIME type",
+        "p": "pubkey (hex)",
+        "P": "pubkey (hex)",
+        "q": "event id (hex)",
+        "r": "url / relay url",
+        "s": "status",
+        "t": "hashtag",
+        "u": "url",
+        "x": "hash",
+        "y": "platform",
+        "z": "order number",
+        "-": "protected",
+        "alt": "summary",
+        "amount": "millisatoshis, stringified",
+        "bolt11": "bolt11 invoice",
+        "challenge": "challenge string",
+        "client": "name, address",
+        "clone": "git clone URL",
+        "content-warning": "reason",
+        "delegation": "pubkey, conditions, delegation token",
+        "dep": "Required dependency",
+        "description": "description",
+        "emoji": "shortcode, image URL",
+        "encrypted": "--",
+        "extension": "File extension",
+        "expiration": "unix timestamp (string)",
+        "file": "full path (string)",
+        "goal": "event id (hex)",
+        "HEAD": "ref: refs/heads/<branch-name>",
+        "image": "image URL",
+        "imeta": "inline metadata",
+        "license": "License of the shared content",
+        "lnurl": "bech32 encoded lnurl",
+        "location": "location string",
+        "name": "name",
+        "nonce": "random",
+        "preimage": "hash of bolt11 invoice",
+        "price": "price",
+        "proxy": "external ID",
+        "published_at": "unix timestamp (string)",
+        "relay": "relay url",
+        "relays": "relay list",
+        "repo": "Reference to the origin repository",
+        "runtime": "Runtime or environment specification",
+        "server": "file storage server url",
+        "subject": "subject",
+        "summary": "summary",
+        "thumb": "badge thumbnail",
+        "title": "title",
+        "tracker": "torrent tracker URL",
+        "web": "webpage URL",
+        "zap": "pubkey (hex), relay URL",
+    }
+
+    @classmethod
+    def get_kind_type(cls, n: int):
+        """The type of the kind"""
+        if n < 0 or n > 65535:
+            raise ValueError("Kind number must be greater than 0 and lower than 65535!")
+        if 1000 <= n < 10000 or 4 <= n < 45 or n in (1, 2):
+            return cls.KIND_REGULAR
+        if 10000 <= n < 20000 or n in (0, 3):
+            return cls.KIND_REPLACEABLE
+        if 20000 <= n < 30000:
+            return cls.KIND_EPHEMERAL
+        if 30000 <= n < 40000:
+            return cls.KIND_ADDRESSABLE
+        return cls.UNKNOWN
+
+    @classmethod
+    def get_kind_desc(cls, n: int):
+        """The meaning of the event"""
+        try:
+            return cls.KIND_DESC[n]
+        except:
+            if 1630 >= n <= 1633:
+                return cls.KIND_DESC["1630-1633"]
+            if 5000 >= n <= 5999:
+                return cls.KIND_DESC["5000-5999"]
+            if 6000 >= n <= 6999:
+                return cls.KIND_DESC["6000-6999"]
+            if 9000 >= n <= 9030:
+                return cls.KIND_DESC["9000-9030"]
+            if 39000 >= n <= 39009:
+                return cls.KIND_DESC["39000-9"]
+
+        return cls.UNKNOWN
+
+    @classmethod
+    def get_tag(cls, txt: str):
+        """The meaning of the tag (may vary depending on the kind)"""
+        try:
+            return cls.TAGS_DESC[txt]
+        except:
+            return cls.UNKNOWN
+
+    @classmethod
+    def parse_event(cls, txt: str):
+        """
+        Parse a JSON-encoded event string and validate required attributes
+        Returns the parsed dict if valid or raise Error
+        """
+        json_content = json.loads(txt)
+        expected_attrs = {
+            cls.PUBKEY,
+            cls.CREATED_AT,
+            cls.KIND,
+            cls.TAGS,
+            cls.CONTENT,
+            cls.ID,
+        }
+
+        missing = expected_attrs - json_content.keys()
+        if missing:
+            raise ValueError("Missing expected attributes: %s." % ", ".join(missing))
+
+        return json_content
+
+    @classmethod
+    def serialize_event(cls, event_dict: dict):
+        """UTF-8 JSON-serialized string as defined in NIP-01"""
+        data = [
+            0,
+            event_dict[cls.PUBKEY],
+            event_dict[cls.CREATED_AT],
+            event_dict[cls.KIND],
+            event_dict[cls.TAGS],
+            event_dict[cls.CONTENT],
+        ]
+        data_str = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+        return data_str
+
+    @classmethod
+    def validate_id(cls, event_dict: dict, serialized_event: str):
+        """Validates informed id with calculated one"""
+        if event_dict[cls.ID] != cls._calculate_id(serialized_event):
+            raise ValueError("Attribute id do not match calculated.")
+        return True
+
+    @staticmethod
+    def _calculate_id(serialized_event: str):
+        """Calculates the id field of the event"""
+        return hashlib.sha256(serialized_event.encode()).digest().hex()
+
+    @staticmethod
+    def sign_event(root, serialized_event: str):
+        """Sign a serialized_event"""
+        return str(
+            root.schnorr_sign(hashlib.sha256(serialized_event.encode()).digest())
+        )
+
 
 # -------------------
 
@@ -125,10 +497,14 @@ class NostrKey:
         root = bip32.HDKey.from_seed(bip39.mnemonic_to_seed(self.value))
         return root.derive(NIP06_PATH)
 
-    def _get_pub_xonly(self):
+    def get_private_key(self):
+        if self.is_mnemonic():
+            return self._mnemonic_to_nip06_key()
         hex_key = self.value if self.key == HEX else self.get_hex()
-        priv = PrivateKey(bytes.fromhex(hex_key))
-        return priv.get_public_key().xonly()
+        return PrivateKey(bytes.fromhex(hex_key))
+
+    def _get_pub_xonly(self):
+        return self.get_private_key().get_public_key().xonly()
 
     def get_hex(self):
         """Return key in hex format"""
@@ -368,6 +744,8 @@ class Klogin(Login):
 
         return MENU_EXIT
 
+    # NIP-06, NIP-19 and NIP-26
+    # mnemonic, nsec and delegate
     def about(self):
         """Handler for the 'about' menu item"""
 
@@ -403,11 +781,92 @@ class Khome(Home):
                     ),
                 ),
                 (t("Nostr Keys"), self.nostr_keys),
-                (t("Sign Event"), self.sign_message),
+                (t("Sign Event"), self.sign_event),
                 (shtn_reboot_label, self.shutdown),
             ],
             back_label=None,
         )
+
+    def sign_event(self):
+        """Handler for Sign Event menu item"""
+        from krux.pages.home_pages.sign_message_ui import SignMessage
+
+        sing_message = SignMessage(self.ctx)
+        data, qr_format, message_filename = sing_message._load_message()
+
+        self.ctx.display.clear()
+        self.ctx.display.draw_centered_text(t("Processing…"))
+
+        if data is None:
+            self.flash_error(t("Failed to load"))
+            return MENU_CONTINUE
+
+        print(qr_format, message_filename)
+
+        # SD
+        if message_filename:
+            data = data.decode()
+
+        print(data)
+        pe = NostrEvent.parse_event(data)
+        se = NostrEvent.serialize_event(pe)
+        # NostrEvent.validate_id(pe, se)
+
+        self._show_event(pe)
+
+        # TODO: show menu: review again, sign to QR code or SD
+
+        return MENU_CONTINUE
+
+    def _show_event(self, pe: dict):
+        created = time.localtime(pe[NostrEvent.CREATED_AT])
+        kind = pe[NostrEvent.KIND]
+        unique_tags = {item[0] for item in pe[NostrEvent.TAGS]}
+        txt = t("Created:")
+        txt += " %s-%02d-%02d %02d:%02d" % created[:5]
+        txt += "\n\n"
+
+        txt += t("Kind:")
+        txt += " %d %s {%s}" % (
+            kind,
+            NostrEvent.get_kind_desc(kind),
+            NostrEvent.get_kind_type(kind),
+        )
+        txt += "\n\n"
+
+        txt += t("Tags:")
+        if unique_tags:
+            txt += " " + ", ".join(
+                "'%s' %s" % (tag, NostrEvent.get_tag(tag)) for tag in unique_tags
+            )
+            txt += "\n\n"
+        txt += " | ".join(", ".join(sublist) for sublist in pe[NostrEvent.TAGS])
+        txt += "\n\n"
+
+        txt += t("Content:")
+        txt += " %s" % pe[NostrEvent.CONTENT]
+
+        offset_x = (
+            DEFAULT_PADDING
+            if not kboard.is_m5stickv
+            else (self.ctx.display.width() % FONT_WIDTH) // 2
+        )
+
+        startpos = endpos = 0
+        txt_size = len(txt)
+        while True:
+            lines, endpos = self.ctx.display.to_lines_endpos(txt[startpos:])
+            self.ctx.display.clear()
+            for i, line in enumerate(lines):
+                self.ctx.display.draw_string(
+                    offset_x,
+                    (i * (FONT_HEIGHT)),
+                    line,
+                )
+            startpos += endpos
+            self.ctx.input.wait_for_fastnav_button()
+            if startpos >= txt_size:
+                break
 
     def nostr_keys(self):
         """Handler for Nostr Keys menu item"""
