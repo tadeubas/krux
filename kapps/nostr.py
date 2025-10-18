@@ -25,7 +25,7 @@ import os
 # avoids importing from flash VSF
 os.chdir("/")
 
-VERSION = "0.1"
+VERSION = "1.0"
 NAME = "Nostr"
 
 from krux.pages import Menu, MENU_CONTINUE, MENU_EXIT, LETTERS, DIGITS, ESC_KEY
@@ -47,10 +47,11 @@ from krux.settings import MAIN_TXT, ELLIPSIS
 from embit import bech32, bip32, bip39
 from embit.ec import PrivateKey
 from embit.networks import NETWORKS
-from binascii import hexlify
+from binascii import hexlify, unhexlify
 import ujson as json
 import hashlib
 import time
+import gc
 
 
 NSEC_SIZE = 63
@@ -395,7 +396,7 @@ class NostrEvent:
             cls.ID,
         }
 
-        missing = expected_attrs - json_content.keys()
+        missing = expected_attrs - set(json_content.keys())
         if missing:
             raise ValueError("Missing expected attributes: %s." % ", ".join(missing))
 
@@ -412,8 +413,7 @@ class NostrEvent:
             event_dict[cls.TAGS],
             event_dict[cls.CONTENT],
         ]
-        data_str = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
-        return data_str
+        return json.dumps(data).replace(", ", ",").replace(": ", ":")
 
     @classmethod
     def validate_id(cls, event_dict: dict, serialized_event: str):
@@ -425,7 +425,7 @@ class NostrEvent:
     @staticmethod
     def _calculate_id(serialized_event: str):
         """Calculates the id field of the event"""
-        return hashlib.sha256(serialized_event.encode()).digest().hex()
+        return hexlify(hashlib.sha256(serialized_event.encode()).digest()).decode()
 
     @staticmethod
     def sign_event(root, serialized_event: str):
@@ -463,7 +463,7 @@ class NostrKey:
         if len(hex) != HEX_SIZE:
             raise ValueError("Hex key must be %d chars!" % HEX_SIZE)
         # try decoding
-        bytes.fromhex(hex)
+        unhexlify(hex)
         self.set(HEX, hex)
 
     def load_mnemonic(self, mnemonic: str):
@@ -501,7 +501,7 @@ class NostrKey:
         if self.is_mnemonic():
             return self._mnemonic_to_nip06_key()
         hex_key = self.value if self.key == HEX else self.get_hex()
-        return PrivateKey(bytes.fromhex(hex_key))
+        return PrivateKey(unhexlify(hex_key))
 
     def _get_pub_xonly(self):
         return self.get_private_key().get_public_key().xonly()
@@ -511,7 +511,7 @@ class NostrKey:
         if self.key == HEX:
             return self.value
         if self.key == NSEC:
-            return NostrKey._decode_bech32(self.value).hex()
+            return hexlify(NostrKey._decode_bech32(self.value)).decode()
         # is mnemonic
         nostr_root = self._mnemonic_to_nip06_key()
         return hexlify(nostr_root.secret).decode()
@@ -521,7 +521,7 @@ class NostrKey:
         if self.key == NSEC:
             return self.value
         if self.key == HEX:
-            return NostrKey._encode_bech32(bytes.fromhex(self.value), NSEC)
+            return NostrKey._encode_bech32(unhexlify(self.value), NSEC)
         # is mnemonic
         nostr_root = self._mnemonic_to_nip06_key()
         return NostrKey._encode_bech32(nostr_root.secret, NSEC)
@@ -530,7 +530,7 @@ class NostrKey:
         """Return pubkey in hex format"""
         if self.key in (HEX, NSEC):
             pub_bytes = self._get_pub_xonly()
-            return pub_bytes.hex()
+            return hexlify(pub_bytes).decode()
         # is mnemonic
         nostr_root = self._mnemonic_to_nip06_key()
         return hexlify(nostr_root.xonly()).decode()
@@ -797,24 +797,90 @@ class Khome(Home):
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(t("Processing…"))
 
+        # memory management
+        del sing_message
+        gc.collect()
+
         if data is None:
             self.flash_error(t("Failed to load"))
             return MENU_CONTINUE
-
-        print(qr_format, message_filename)
 
         # SD
         if message_filename:
             data = data.decode()
 
-        print(data)
         pe = NostrEvent.parse_event(data)
         se = NostrEvent.serialize_event(pe)
-        # NostrEvent.validate_id(pe, se)
+        NostrEvent.validate_id(pe, se)
 
-        self._show_event(pe)
+        submenu = Menu(
+            self.ctx,
+            [
+                (t("Review Again"), lambda: None),
+                (t("Sign to QR code"), lambda: None),
+                (
+                    t("Sign to SD card"),
+                    None if not self.has_sd_card() else lambda: None,
+                ),
+            ],
+            back_status=lambda: None,
+        )
+        index = 0
 
-        # TODO: show menu: review again, sign to QR code or SD
+        while index == 0:  # Review Again
+            self._show_event(pe)
+            index, _ = submenu.run_loop()
+
+        if index == submenu.back_index:  # Back
+            return MENU_CONTINUE
+
+        self.ctx.display.clear()
+        self.ctx.display.draw_centered_text(t("Signing…"))
+
+        # memory management
+        del pe
+        del submenu
+        gc.collect()
+
+        signed_event = NostrEvent.sign_event(nostrKey.get_private_key(), se)
+
+        if index == 1:  # Sign to QR code
+            from krux.pages.utils import Utils
+
+            utils = Utils(self.ctx)
+
+            while True:
+                self.display_qr_codes(signed_event, qr_format)
+                utils.print_standard_qr(
+                    signed_event, qr_format, t("Signed Event"), width=45
+                )
+                self.ctx.display.clear()
+                if self.prompt(t("Done?"), self.ctx.display.height() // 2):
+                    return MENU_CONTINUE
+
+        # index == 2: Sign to SD card
+        from krux.sd_card import SDHandler, SIGNED_FILE_SUFFIX, SIGNATURE_FILE_EXTENSION
+        from krux.pages.file_operations import SaveFile
+
+        save_page = SaveFile(self.ctx)
+        message_filename = save_page.set_filename(
+            message_filename,
+            "QRCode",
+            SIGNED_FILE_SUFFIX,
+            SIGNATURE_FILE_EXTENSION,
+        )
+
+        if message_filename and message_filename != ESC_KEY:
+            try:
+                with SDHandler() as sd:
+                    sd.write(message_filename, signed_event)
+                    self.flash_text(
+                        t("Saved to SD card:") + "\n\n%s" % message_filename,
+                        highlight_prefix=":",
+                    )
+                    return MENU_CONTINUE
+            except OSError:
+                self.flash_error(t("SD card not detected."))
 
         return MENU_CONTINUE
 
@@ -854,6 +920,7 @@ class Khome(Home):
 
         startpos = endpos = 0
         txt_size = len(txt)
+        prefixes = [t("Created:"), t("Kind:"), t("Tags:"), t("Content:")]
         while True:
             lines, endpos = self.ctx.display.to_lines_endpos(txt[startpos:])
             self.ctx.display.clear()
@@ -863,6 +930,16 @@ class Khome(Home):
                     (i * (FONT_HEIGHT)),
                     line,
                 )
+                if any(line.startswith(p) for p in prefixes):
+                    prefixes.pop(0)
+                    prefix_index = line.find(":")
+                    if prefix_index > -1:
+                        self.ctx.display.draw_string(
+                            offset_x,
+                            (i * (FONT_HEIGHT)),
+                            line[: prefix_index + 1],
+                            theme.highlight_color,
+                        )
             startpos += endpos
             self.ctx.input.wait_for_fastnav_button()
             if startpos >= txt_size:
@@ -988,5 +1065,5 @@ def run(ctx):
 
 nostrKey = NostrKey()
 
-# TODO: use try / catch and threat exceptions to avoid error:
+# use try / catch and threat exceptions to avoid error?
 # Could not execute nostr
