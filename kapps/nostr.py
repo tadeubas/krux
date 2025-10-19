@@ -744,8 +744,8 @@ class Klogin(Login):
 
         return MENU_EXIT
 
-    # NIP-06, NIP-19 and NIP-26
-    # mnemonic, nsec and delegate
+    # NIP-06 and NIP-19
+    # mnemonic and nsec/npub
     def about(self):
         """Handler for the 'about' menu item"""
 

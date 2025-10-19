@@ -28,18 +28,14 @@ old_stat = os.stat
 
 
 def new_listdir(path, *args, **kwargs):
-    if path.startswith("/sd"):
+    if path.startswith(("/sd", "/flash")):
         path = path.lstrip("/")
-    elif path.startswith("/flash"):
-        path = path.replace("/flash", "sd")
     return old_listdir(path, *args, **kwargs)
 
 
 def new_remove(path, *args, **kwargs):
-    if path.startswith("/sd"):
+    if path.startswith(("/sd", "/flash")):
         path = path.lstrip("/")
-    elif path.startswith("/flash"):
-        return
     return old_remove(path, *args, **kwargs)
 
 
