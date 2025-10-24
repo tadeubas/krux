@@ -328,7 +328,12 @@ class Page:
                 done = True
 
     def display_mnemonic(
-        self, mnemonic: str, suffix="", display_mnemonic: str = None, fingerprint=""
+        self,
+        mnemonic: str,
+        title=None,
+        suffix="",
+        display_mnemonic: str = None,
+        fingerprint="",
     ):
         """Displays the 12 or 24-word list of words to the user"""
         from ..wallet import is_double_mnemonic
@@ -343,7 +348,11 @@ class Page:
             suffix += "*"
         if fingerprint:
             fingerprint = "\n" + fingerprint
-        header = "BIP39 {}{}".format(suffix, fingerprint)
+        header = (
+            "BIP39 {}{}".format(suffix, fingerprint)
+            if not title
+            else "{} {}{}".format(title, suffix, fingerprint)
+        )
         self.ctx.display.clear()
         self.ctx.display.draw_hcentered_text(header)
         if fingerprint:
@@ -565,6 +574,19 @@ class Page:
                 FONT_HEIGHT,
                 theme.frame_color,
             )
+
+    def choose_len_mnemonic(self, extra_option=""):
+        """Reusable '12 or 24 words?" menu choice"""
+        items = [
+            (t("12 words"), lambda: 12),
+            (t("24 words"), lambda: 24),
+        ]
+        if extra_option:
+            items.append((extra_option, lambda: EXTRA_MNEMONIC_LENGTH_FLAG))
+        submenu = Menu(self.ctx, items, back_status=lambda: None)
+        _, num_words = submenu.run_loop()
+        self.ctx.display.clear()
+        return num_words
 
 
 class ListView:
@@ -1002,17 +1024,3 @@ class Menu:
                         text, offset_y + FONT_HEIGHT * j, fg_color
                     )
             offset_y += delta_y
-
-
-def choose_len_mnemonic(ctx, extra_option=""):
-    """Reusable '12 or 24 words?" menu choice"""
-    items = [
-        (t("12 words"), lambda: 12),
-        (t("24 words"), lambda: 24),
-    ]
-    if extra_option:
-        items.append((extra_option, lambda: EXTRA_MNEMONIC_LENGTH_FLAG))
-    submenu = Menu(ctx, items, back_status=lambda: None)
-    _, num_words = submenu.run_loop()
-    ctx.display.clear()
-    return num_words
