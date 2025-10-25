@@ -31,10 +31,27 @@ theme:
   name: material
   logo: img/favicon.png
   favicon: img/favicon.png
+  language: en
   palette:
-    primary: white
-    accent: light blue
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: white
+      accent: light blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    
   features:
+    - navigation.tracking
+    - navigation.instant
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.sections
@@ -72,7 +89,7 @@ extra:
     - icon: fontawesome/brands/github
       link: https://github.com/selfcustody/krux
       name: Our code on Github
-  generator: true
+  generator: false
 copyright: 
   Powered by <a href="https://embit.rocks/">embit</a>, the Bitcoin library for Python 3 and Micropython
 
@@ -138,20 +155,20 @@ plugins:
         build: true
       - locale: es
         name: Español
+        build: true
         site_name: Krux - Programa de código abierto de equipos de firma para Bitcoin 
-    nav_translations:
-      es: 
-        Home: Inicio
-        Getting Started: Primeros Pasos
-        Devices and Part List: Dispositivos y Lista de Piezas
-        FAQ: Preguntas Frecuentes
-        Support the Project: Apoyar el Proyecto
-        About: Acerca de
-        Installing: Instalando 
-        Generating a Mnemonic: Generar una Mnemónica
-        Loading a Mnemonic: Cargar una Mnemónica
-        Navigating the Main Menu: Navegar el Menú Principal
-        Using a Single-sig Wallet: Usando una Billetera de Firma Única
-        Using a Multisig Wallet: Usando una Billetera Multifirma
-        Printing: Imprimiendo
-        Settings: Ajustes
+        nav_translations:
+          Home: Inicio
+          Getting Started: Primeros Pasos
+          Devices and Parts List: Dispositivos y Lista de Piezas
+          FAQ: Preguntas Frecuentes
+          Support the Project: Apoyar el Proyecto
+          About: Acerca de
+          Installing: Instalando 
+          Generating a Mnemonic: Generar una Mnemónica
+          Loading a Mnemonic: Cargar una Mnemónica
+          Navigating the Main Menu: Navegar el Menú Principal
+          Using a Single-sig Wallet: Usando una Billetera de Firma Única
+          Using a Multisig Wallet: Usando una Billetera Multifirma
+          Printing: Imprimiendo
+          Settings: Ajustes
