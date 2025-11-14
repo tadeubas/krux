@@ -29,7 +29,14 @@ NAME = "Steganography"
 
 print("Print executed inside kapp", NAME)
 
-from krux.pages import (Page, Menu, MENU_CONTINUE, MENU_EXIT, MENU_SHUTDOWN, ESC_KEY, LETTERS,
+from krux.pages import (
+    Page,
+    Menu,
+    MENU_CONTINUE,
+    MENU_EXIT,
+    MENU_SHUTDOWN,
+    ESC_KEY,
+    LETTERS,
     UPPERCASE_LETTERS,
     NUM_SPECIAL_1,
     NUM_SPECIAL_2,
@@ -58,14 +65,14 @@ import gc
 # 65535 - white 1111 1111 1111 1111
 # 248 - red     0000 0000 1111 1000
 # 57351 - green 1110 0000 0000 0111
-# 7936 - blue   0001 1111 0000 0000 
+# 7936 - blue   0001 1111 0000 0000
 
-PAYLOAD_LEN_BYTES = 3 # sufficient to ~4000x4000 px (OOM already with 600x550 px)
-PAYLOAD_ENDIAN = 'big'
+PAYLOAD_LEN_BYTES = 3  # sufficient to ~4000x4000 px (OOM already with 600x550 px)
+PAYLOAD_ENDIAN = "big"
 
-LSB_SHIFTS = [13, 3, 8]          # 13G, 3R, 8B
+LSB_SHIFTS = [13, 3, 8]  # 13G, 3R, 8B
 BITS_PER_PIXEL = len(LSB_SHIFTS)
-MASKS = [1<<s for s in LSB_SHIFTS]
+MASKS = [1 << s for s in LSB_SHIFTS]
 
 # -------------------
 
@@ -131,17 +138,17 @@ class Kapp(DeviceTests):
             ctx,
         )
         self.menu = KMenu(
-                ctx,
-                [
-                    (t("BMP Via Camera"), self.camera),
-                    (t("SD Card"), self.sd_menu),
-                    (t("Hide Data in BMP"), self.hide_menu),
-                    (t("Reveal Data"), self.reveal_menu),
-                    (t("About"), self.about),
-                    (shtn_reboot_label, self.shutdown),
-                ],
-                back_label=None,
-            )
+            ctx,
+            [
+                (t("BMP Via Camera"), self.camera),
+                (t("SD Card"), self.sd_menu),
+                (t("Hide Data in BMP"), self.hide_menu),
+                (t("Reveal Data"), self.reveal_menu),
+                (t("About"), self.about),
+                (shtn_reboot_label, self.shutdown),
+            ],
+            back_label=None,
+        )
 
     def camera(self):
         self.ctx.display.clear()
@@ -159,7 +166,9 @@ class Kapp(DeviceTests):
 
             img = self.ctx.camera.snapshot()
 
-            if (self.ctx.input.enter_event() or self.ctx.input.touch_event(validate_position=False)):
+            if self.ctx.input.enter_event() or self.ctx.input.touch_event(
+                validate_position=False
+            ):
                 break
             if self.ctx.input.page_event() or self.ctx.input.page_prev_event():
                 leave = True
@@ -225,7 +234,7 @@ class Kapp(DeviceTests):
         if not self.has_sd_card():
             self.flash_error(t("SD card not detected."))
             return MENU_CONTINUE
-        
+
         utils = Utils(self.ctx)
         img_path, _ = utils.load_file(
             file_ext=BMP_IMAGE_EXTENSION,
@@ -247,7 +256,7 @@ class Kapp(DeviceTests):
             self.ctx.display.to_portrait()
             self.flash_error(t("Image is too big!"))
             return MENU_CONTINUE
-        
+
         self.ctx.input.wait_for_button()
         self.ctx.display.to_portrait()
         return MENU_CONTINUE
@@ -265,9 +274,7 @@ class Kapp(DeviceTests):
 
     def hide_menu(self):
         self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(
-            t("Provide the data to hide")
-        )
+        self.ctx.display.draw_centered_text(t("Provide the data to hide"))
         if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
             return MENU_CONTINUE
 
@@ -282,20 +289,18 @@ class Kapp(DeviceTests):
         index, status = submenu.run_loop()
         if index == submenu.back_index or status == MENU_CONTINUE:
             return MENU_CONTINUE
-        
+
         secret = status
-        
+
         self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(
-            t("Select the BMP file")
-        )
+        self.ctx.display.draw_centered_text(t("Select the BMP file"))
         if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
             return MENU_CONTINUE
-        
+
         if not self.has_sd_card():
             self.flash_error(t("SD card not detected."))
             return MENU_CONTINUE
-        
+
         utils = Utils(self.ctx)
         img_path, _ = utils.load_file(
             file_ext=BMP_IMAGE_EXTENSION,
@@ -306,14 +311,14 @@ class Kapp(DeviceTests):
         # pressed Back, no file selected
         if img_path == "":
             return MENU_CONTINUE
-        
+
         split_img_path = img_path.split("/")
         sf = SaveFile(self.ctx)
         new_filename = sf.set_filename(
-                curr_filename=split_img_path[-1],
-                file_extension=BMP_IMAGE_EXTENSION,
-                suffix="-hid",
-            )
+            curr_filename=split_img_path[-1],
+            file_extension=BMP_IMAGE_EXTENSION,
+            suffix="-hid",
+        )
 
         if new_filename == ESC_KEY:
             return MENU_CONTINUE
@@ -324,12 +329,12 @@ class Kapp(DeviceTests):
             self.ctx.display.clear()
             self.ctx.display.draw_centered_text(t("Processing…"))
 
-            new_filename_path = SD_PATH + "/" 
+            new_filename_path = SD_PATH + "/"
             if len(split_img_path) > 1:
                 new_filename_path += "/".join(split_img_path[:-1]) + "/"
             new_filename_path += new_filename
 
-            self.hide_data(secret, "/%s/%s" % (SD_PATH, img_path),  new_filename_path)
+            self.hide_data(secret, "/%s/%s" % (SD_PATH, img_path), new_filename_path)
             gc.collect()
 
             # Show the user the filename
@@ -339,11 +344,11 @@ class Kapp(DeviceTests):
             )
 
             retrieved = self.extract_data(new_filename_path)
-            if (retrieved != secret):
-                self.flash_error(t("Could not retrieve secret from %s") % new_filename) 
+            if retrieved != secret:
+                self.flash_error(t("Could not retrieve secret from %s") % new_filename)
 
         return MENU_CONTINUE
-    
+
     def hide_data(self, secret: bytes, cover_path: str, stego_path: str):
 
         def _bits_generator(payload):
@@ -361,10 +366,10 @@ class Kapp(DeviceTests):
 
         payload = len(secret).to_bytes(PAYLOAD_LEN_BYTES, PAYLOAD_ENDIAN) + secret
         bit_gen = _bits_generator(payload)
-        bits_needed = len(payload) * 8 # each char in binary is 1 byte
-        pixels_needed = -(-bits_needed // BITS_PER_PIXEL) # ceil of division
+        bits_needed = len(payload) * 8  # each char in binary is 1 byte
+        pixels_needed = -(-bits_needed // BITS_PER_PIXEL)  # ceil of division
         if pixels_needed > w * h:
-            raise ValueError("Need %s px, image has %s" % (pixels_needed, w*h))
+            raise ValueError("Need %s px, image has %s" % (pixels_needed, w * h))
 
         # encode all bits in the img
         bit_idx = 0
@@ -385,13 +390,12 @@ class Kapp(DeviceTests):
                     mask = MASKS[i]
                     pixel = (pixel & ~mask) | (bit << shift)
                     bit_idx += 1
-
                 img.set_pixel(x, y, pixel)
             if bit_idx >= bits_needed:
                 break
 
         img.save(stego_path)
-    
+
     def extract_data(self, stego_path: str):
         try:
             img = image.Image(stego_path)
@@ -404,7 +408,7 @@ class Kapp(DeviceTests):
         payload_len = 0
         bits_read = 0
         pos_x = pos_y = 0
-        total_bits = PAYLOAD_LEN_BYTES *8
+        total_bits = PAYLOAD_LEN_BYTES * 8
         while bits_read < total_bits:
             pixel = img.get_pixel(pos_x, pos_y, rgbtuple=False)
 
@@ -456,7 +460,7 @@ class Kapp(DeviceTests):
         if len(payload) < payload_len:
             raise ValueError("Payload truncated")
         return bytes(payload[:payload_len])
-    
+
     def reveal_menu(self):
 
         utils = Utils(self.ctx)
@@ -469,11 +473,11 @@ class Kapp(DeviceTests):
         # pressed Back, no file selected
         if img_path == "":
             return MENU_CONTINUE
-        
+
         secret = self.extract_data("/%s/%s" % (SD_PATH, img_path))
 
         self.ctx.display.clear()
-        if not secret or secret == b'\x00':
+        if not secret or secret == b"\x00":
             self.flash_error(t("No secret found!"))
             return MENU_CONTINUE
 
@@ -485,7 +489,6 @@ class Kapp(DeviceTests):
         page.contents = secret
         page.title = img_path.split("/")[-1]
         return page.view_contents()
-
 
     def scan_qr(self):
         """Handler for the 'Scan a QR' menu item"""
@@ -504,7 +507,7 @@ class Kapp(DeviceTests):
                 contents = urtypes.bytes.Bytes.from_cbor(contents.cbor).data
 
         if isinstance(contents, str):
-            contents = contents.encode('utf-8')
+            contents = contents.encode("utf-8")
 
         return contents
 
@@ -518,19 +521,19 @@ class Kapp(DeviceTests):
             text = self.capture_from_keypad(
                 t("Filename"),
                 [LETTERS, UPPERCASE_LETTERS, NUM_SPECIAL_1, NUM_SPECIAL_2],
-                starting_buffer=text
+                starting_buffer=text,
             )
 
             if text == ESC_KEY:
                 return MENU_CONTINUE
-                
+
             self.ctx.display.clear()
             self.ctx.display.draw_centered_text(
                 t("Proceed?") + " " + text, highlight_prefix="?"
             )
             if self.prompt("", BOTTOM_PROMPT_LINE):
-                return text.encode('utf-8')
-        
+                return text.encode("utf-8")
+
         return MENU_CONTINUE
 
     def read_file(self):
@@ -555,6 +558,7 @@ class Kapp(DeviceTests):
 
         # utils.load_file() always returns binary
         return contents
+
 
 # -------------------
 
