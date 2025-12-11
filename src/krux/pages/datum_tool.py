@@ -840,6 +840,8 @@ class DatumTool(Page):
             self.ctx,
             todo_menu,
             offset=info_len * FONT_HEIGHT + DEFAULT_PADDING,
+            **back_status,
+            infobox_callback=self._info_box
         )
         _, status = menu.run_loop()
 
