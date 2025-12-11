@@ -27,14 +27,10 @@ os.chdir("/")
 VERSION = "1.0"
 NAME = "Steganography"
 
-print("Print executed inside kapp", NAME)
-
 from krux.pages import (
-    Page,
     Menu,
     MENU_CONTINUE,
     MENU_EXIT,
-    MENU_SHUTDOWN,
     ESC_KEY,
     LETTERS,
     UPPERCASE_LETTERS,
@@ -151,6 +147,7 @@ class Kapp(DeviceTests):
         )
 
     def camera(self):
+        """Capture a BMP by camera"""
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(t("TOUCH or ENTER to capture"))
         self.ctx.display.to_landscape()
@@ -215,9 +212,11 @@ class Kapp(DeviceTests):
                 return MENU_CONTINUE
         else:
             self.flash_error(t("Capture cancelled"))
-            return MENU_CONTINUE
+
+        return MENU_CONTINUE
 
     def sd_menu(self):
+        """Handler for the 'SD card' menu item"""
         submenu = Menu(
             self.ctx,
             [
@@ -231,6 +230,7 @@ class Kapp(DeviceTests):
         return status
 
     def view(self):
+        """Handler for the 'View BMP' menu item"""
         if not self.has_sd_card():
             self.flash_error(t("SD card not detected."))
             return MENU_CONTINUE
@@ -273,6 +273,7 @@ class Kapp(DeviceTests):
         return MENU_CONTINUE
 
     def hide_menu(self):
+        """Handler for the 'Hide Data in BMP' menu item"""
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(t("Provide the data to hide"))
         if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
@@ -350,6 +351,7 @@ class Kapp(DeviceTests):
         return MENU_CONTINUE
 
     def hide_data(self, secret: bytes, cover_path: str, stego_path: str):
+        """Hide secret into cover_path file and output result to stego_path file"""
 
         def _bits_generator(payload):
             for b in payload:
@@ -395,8 +397,10 @@ class Kapp(DeviceTests):
                 break
 
         img.save(stego_path)
+        return MENU_CONTINUE
 
     def extract_data(self, stego_path: str):
+        """Return secret extracted from stego_path"""
         try:
             img = image.Image(stego_path)
         except:
@@ -462,7 +466,7 @@ class Kapp(DeviceTests):
         return bytes(payload[:payload_len])
 
     def reveal_menu(self):
-
+        """Handler for the 'Reveal Data' menu item"""
         utils = Utils(self.ctx)
         img_path, _ = utils.load_file(
             file_ext=BMP_IMAGE_EXTENSION,
@@ -487,7 +491,7 @@ class Kapp(DeviceTests):
 
         page = DatumTool(self.ctx)
         page.contents = secret
-        page.title = img_path.split("/")[-1]
+        page.title = img_path.rsplit("/", 1)[-1]
         return page.view_contents()
 
     def scan_qr(self):
@@ -513,7 +517,6 @@ class Kapp(DeviceTests):
 
     def text_entry(self):
         """Handler for the 'Text Entry' menu item"""
-        from krux.pages.encryption_ui import prompt_for_text_update
 
         text = ""
         while True:
@@ -538,15 +541,13 @@ class Kapp(DeviceTests):
 
     def read_file(self):
         """Handler for the 'Read File' menu item"""
-        from krux.pages.utils import Utils
-
         if not self.has_sd_card():
             self.flash_error(t("SD card not detected."))
             return MENU_CONTINUE
 
         utils = Utils(self.ctx)
         try:
-            filename, contents = utils.load_file(prompt=False)
+            _, contents = utils.load_file(prompt=False)
         except OSError:
             pass
 
@@ -565,6 +566,5 @@ class Kapp(DeviceTests):
 
 def run(ctx):
     """Runs this kapp"""
-    print("run() function inside kapp", NAME)
 
     Kapp(ctx).run()
