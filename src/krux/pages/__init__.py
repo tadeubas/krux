@@ -798,7 +798,7 @@ class Menu:
                         screensaver_time == 0,
                         screensaver_time * ONE_MINUTE,
                         update_callback=self.draw_status_bar,
-                )
+                    )
                     if btn == BUTTON_TOUCH:
                         selected_item_index = self.ctx.input.touch.current_index()
                         if selected_item_index < 0:
