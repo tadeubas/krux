@@ -797,7 +797,8 @@ class Menu:
                         # Block if screen saver not active
                         screensaver_time == 0,
                         screensaver_time * ONE_MINUTE,
-                    )
+                        update_callback=self.draw_status_bar,
+                )
                     if btn == BUTTON_TOUCH:
                         selected_item_index = self.ctx.input.touch.current_index()
                         if selected_item_index < 0:
@@ -915,24 +916,44 @@ class Menu:
         width = self.ctx.display.width()
         x_padding = FONT_HEIGHT // 3
         y_padding = (STATUS_BAR_HEIGHT // 2) - (BATTERY_HEIGHT // 2)
-        self.ctx.display.outline(
-            width - x_padding - BATTERY_WIDTH,
-            y_padding,
-            BATTERY_WIDTH,
-            BATTERY_HEIGHT,
-            battery_color,
-        )
-        self.ctx.display.fill_rectangle(
-            width - x_padding + 1, y_padding + 2, 2, BATTERY_HEIGHT - 3, battery_color
-        )
-        charge_length = int((BATTERY_WIDTH - 3) * charge)
-        self.ctx.display.fill_rectangle(
-            width - x_padding - BATTERY_WIDTH + 2,
-            y_padding + 2,
-            charge_length,
-            BATTERY_HEIGHT - 3,
-            battery_color,
-        )
+        if not Settings().hardware.battery.percentage:
+            self.ctx.display.outline(
+                width - x_padding - BATTERY_WIDTH,
+                y_padding,
+                BATTERY_WIDTH,
+                BATTERY_HEIGHT,
+                battery_color,
+            )
+            self.ctx.display.fill_rectangle(
+                width - x_padding + 1,
+                y_padding + 2,
+                2,
+                BATTERY_HEIGHT - 3,
+                battery_color,
+            )
+            charge_length = int((BATTERY_WIDTH - 3) * charge)
+            self.ctx.display.fill_rectangle(
+                width - x_padding - BATTERY_WIDTH + 2,
+                y_padding + 2,
+                charge_length,
+                BATTERY_HEIGHT - 3,
+                battery_color,
+            )
+        else:
+            charge = min(5 * round(int(charge * 100) / 5), 95)
+            x_padding = self.ctx.display.width() - (3 * FONT_WIDTH)
+            x_padding = (
+                x_padding - 1
+                if kboard.has_minimal_display
+                else x_padding - MINIMAL_PADDING
+            )
+            self.ctx.display.draw_string(
+                x_padding,
+                STATUS_BAR_HEIGHT - FONT_HEIGHT - 1,
+                "{:>3}".format(str(charge) + "%"),
+                battery_color,
+                theme.info_bg_color,
+            )
 
     def draw_wallet_indicator(self):
         """Draws wallet fingerprint or BIP85 child at top if wallet is loaded"""

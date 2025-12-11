@@ -17,6 +17,9 @@ Krux now displays a warning instead of blocking QR-encoded passphrases that cont
 ### Easier to Scan UR QR Codes
 Exported Uniform Resource (UR) QR codes, a widely adopted standard for exchanging PSBTs, now use uppercase data to reduce QR density, improving scan reliability without increasing the number of frames.
 
+### Battery Percentage Indicator
+Battery level is now displayed as a percentage (configurable in settings). The on-screen value updates automatically.
+
 ### Improved UI
 - Added new context arrows, customizable colors, touch-feedback highlighting and a page index for menu navigation.
 - Refined keypad visuals with a clearer keyset index and touch-feedback highlighting.
