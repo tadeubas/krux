@@ -680,9 +680,9 @@ class Menu:
 
     def screensaver(self):
         """Loads and starts screensaver"""
-        from .screensaver import screensaver_start
+        from .screensaver import ScreenSaver
 
-        screensaver_start(self.ctx)
+        ScreenSaver(self.ctx).start()
 
     def _process_page(self, selected_item_index):
         selected_item_index = (selected_item_index + 1) % len(self.menu_view)

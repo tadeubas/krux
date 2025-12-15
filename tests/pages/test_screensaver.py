@@ -6,7 +6,7 @@ def test_screensaver_m5stickv(m5stickv, mocker):
     from krux.themes import theme
     from krux.input import BUTTON_ENTER, QR_ANIM_PERIOD
     from krux.display import SPLASH
-    from krux.pages.screensaver import screensaver_start
+    from krux.pages.screensaver import ScreenSaver
     import time
 
     SCREENSAVER_ANIMATION_TIME = QR_ANIM_PERIOD
@@ -28,7 +28,8 @@ def test_screensaver_m5stickv(m5stickv, mocker):
     ctx = create_ctx(mocker, btn_seq)
     time.ticks_ms = mocker.MagicMock(side_effect=time_seq)
 
-    screensaver_start(ctx)
+    screen_saver = ScreenSaver(ctx)
+    screen_saver.start()
 
     ctx.display.draw_hcentered_text.assert_any_call(
         SPLASH[10], 182, theme.fg_color, theme.bg_color
