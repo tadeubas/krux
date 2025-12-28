@@ -42,6 +42,7 @@ Battery level is now displayed as a percentage (configurable in settings). The o
 - UI: Other small changes and optimizations
 - Fix fingerprint unset warn message for rare case
 - Improved QR code decoding performance and added inverted color QR code detection
+- Improve scan TinySeed and other binary visibility by drawing punches only
 
 # Changelog 25.10.1 - October 2025
 
