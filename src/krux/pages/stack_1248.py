@@ -485,7 +485,10 @@ class Stackbit(Page):
                         word_index += 1
                 elif index >= STACKBIT_ESC_INDEX:  # ESC
                     self.ctx.display.clear()
-                    if self.prompt(t("Are you sure?"), self.ctx.display.height() // 2):
+                    if self.prompt(
+                        t("Back to Menu") + "\n\n" + t("Are you sure?"),
+                        self.ctx.display.height() >> 1,
+                    ):
                         break
                 elif index < 14:
                     digits = self._toggle_bit(digits, index)

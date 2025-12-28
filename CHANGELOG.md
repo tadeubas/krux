@@ -34,7 +34,8 @@ Battery level is now displayed as a percentage (configurable in settings). The o
 - Bugfix: Screensaver not activating in menu pages without statusbar
 - Screensaver: Now appears on menu screens that display info boxes
 - Embit: Improved BIP39 mnemonic validation
-- Bug Fix: Corrected handling of certain binary-encoded QR codes
+- Bugfix: Corrected handling of certain binary-encoded QR codes
+- UI: Added contextual information to "Are you sure?" exit prompts
 - UI: Other small changes and optimizations
 - Fix fingerprint unset warn message for rare case
 - Improved QR code decoding performance and added inverted color QR code detection
