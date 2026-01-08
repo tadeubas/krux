@@ -360,12 +360,17 @@ def test_load_sd_kapp_found_in_flash(m5stickv, mocker):
         new=mocker.MagicMock(return_value=b"sha256hashvalue"),
     )
 
+    mocker.patch(
+        "os.chdir",
+        new=mocker.MagicMock(),
+    )
+
     ctx = create_ctx(mocker, btn_seq)
     kapps = Kapps(ctx)
 
     mocker.spy(kapps, "flash_error")
 
-    mocker.patch.object(kapps, "execute_flash_kapp", new=lambda name: "Success")
+    mocker.patch.object(kapps, "execute_flash_kapp", return_value="Success")
 
     assert kapps.load_sd_kapp() == "Success"
 
@@ -464,12 +469,17 @@ def test_load_sd_kapp_not_found_allow_store_in_flash(m5stickv, mocker):
         new=sha_return,
     )
 
+    mocker.patch(
+        "os.chdir",
+        new=mocker.MagicMock(),
+    )
+
     ctx = create_ctx(mocker, btn_seq)
     kapps = Kapps(ctx)
 
     mocker.spy(kapps, "flash_error")
 
-    mocker.patch.object(kapps, "execute_flash_kapp", new=lambda name: "Success")
+    mocker.patch.object(kapps, "execute_flash_kapp", return_value="Success")
 
     mocker.spy(kapps, "execute_flash_kapp")
 

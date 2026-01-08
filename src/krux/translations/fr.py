@@ -311,6 +311,7 @@ translation_array = [
     "Dépense (%d)\u2009:",
     "Dépense\u2009:",
     "Mode standard",
+    "Startup Kapp",
     "Statique",
     "Statistiques pour les geeks",
     "Stocker sur flash",

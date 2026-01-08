@@ -311,6 +311,7 @@ translation_array = [
     "Uitgaven (%d):",
     "Uitgaven:",
     "Standaardmodus",
+    "Kapp opstarten",
     "Statisch",
     "Statistieken voor nerds",
     "Opslaan op apparaat",

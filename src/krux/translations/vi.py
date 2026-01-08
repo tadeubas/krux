@@ -311,6 +311,7 @@ translation_array = [
     "Chi tiêu (%d):",
     "Chi tiêu:",
     "Chế độ Tiêu chuẩn",
+    "Startup Kapp",
     "Tĩnh",
     "Số liệu thống kê cho Mọt sách",
     "Lưu trữ trên flash",

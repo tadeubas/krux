@@ -311,6 +311,7 @@ translation_array = [
     "Spend (%d):",
     "지출:",
     "표준 모드",
+    "스타트업 Kapp",
     "Static",
     "전문가를 위한 통계",
     "플래시 메모리에 저장",

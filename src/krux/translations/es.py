@@ -311,6 +311,7 @@ translation_array = [
     "Gastos (%d):",
     "Gasto:",
     "Modo estándar",
+    "Startup Kapp",
     "Estático",
     "Estadísticas para Entendidos",
     "Almacenar en Flash",

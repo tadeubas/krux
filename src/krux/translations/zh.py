@@ -311,6 +311,7 @@ translation_array = [
     "花费 (%d):",
     "花费",
     "标准模式",
+    "启动Kapp",
     "Static  静态？",
     "极客统计数据",
     "存储到 Flash",

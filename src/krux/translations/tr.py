@@ -311,6 +311,7 @@ translation_array = [
     "Harcama (%d):",
     "Harcama:",
     "Standart Mod",
+    "Startup Kapp",
     "Statik",
     "İnekler İçin İstatistikler",
     "Flash'ta Sakla",

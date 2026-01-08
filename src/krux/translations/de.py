@@ -311,6 +311,7 @@ translation_array = [
     "Ausgabe (%d):",
     "Ausgaben:",
     "Standardmodus",
+    "Startup Kapp",
     "Statisch",
     "Statistiken für Nerds",
     "Auf Flash speichern",

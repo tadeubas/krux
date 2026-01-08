@@ -24,14 +24,16 @@ from krux.pages import (
     Page,
     Menu,
     MENU_CONTINUE,
+    MENU_EXIT,
 )
 from krux.krux_settings import t
 from krux.display import BOTTOM_PROMPT_LINE
 from krux.sd_card import MPY_FILE_EXTENSION, SIGNATURE_FILE_EXTENSION, SD_PATH
-from krux.settings import FLASH_PATH
+from krux.settings import FLASH_PATH, STARTUP_APPS_FILE
 import os
 
 READABLEBUFFER_SIZE = 128
+STARTUP_ATTR = "ALLOW_STARTUP"
 
 
 class Kapps(Page):
@@ -117,14 +119,14 @@ class Kapps(Page):
 
         return True
 
-    def execute_flash_kapp(self, app_name):
+    def execute_flash_kapp(self, app_name, from_sd=False, prompt=True):
         """Prompt user to load and 'execute' a .mpy Krux app"""
 
         self.ctx.display.clear()
-        if not self.prompt(
+        if prompt and not self.prompt(
             t("Execute %s Krux app?") % app_name, self.ctx.display.height() // 2
         ):
-            return MENU_CONTINUE
+            return MENU_EXIT if from_sd else MENU_CONTINUE
 
         # Allows import of files in flash VFS
         import vfs
@@ -155,6 +157,10 @@ class Kapps(Page):
         # avoids importing from flash VSF
         vfs.exec_allowed(False)
         os.chdir("/")
+
+        # Avoid restart when forced execution (startup)
+        if not prompt:
+            return None
 
         # After execution restart Krux (better safe than sorry)
         from ..power import power_manager
@@ -217,7 +223,10 @@ class Kapps(Page):
                     break
 
         # Copy kapp + sig from SD to flash VFS, if app not found
+        install_from_sd = False
         if not found_in_flash_vfs:
+            install_from_sd = True
+
             # Warns user about changing users's flash internal memory region
             self.ctx.display.clear()
             if not self.prompt(
@@ -248,10 +257,49 @@ class Kapps(Page):
             ) as kapp_sig_file:
                 kapp_sig_file.write(sig_data)
 
+            # Load Kapp to check for ALLOW_STARTUP flag
+            import vfs
+            import ujson as json
+
+            # Allows import of files in flash VFS
+            vfs.exec_allowed(True)
+            os.chdir(flash_path_prefix)
+
+            # Import kapp
+            i_kapp = None
+            app_name = filename_flash[:-4]
+            try:
+                i_kapp = __import__(app_name)
+                if getattr(i_kapp, STARTUP_ATTR, False):
+                    # Load or create startup apps file
+                    try:
+                        with open(flash_path_prefix + STARTUP_APPS_FILE, "r") as f:
+                            startup_apps = set(json.load(f))
+                    except:
+                        startup_apps = set()
+
+                    # update
+                    startup_apps.add(app_name)
+
+                    # save
+                    with open(flash_path_prefix + STARTUP_APPS_FILE, "w") as f:
+                        json.dump(list(startup_apps), f)
+
+                # Unimport kapp
+                import sys
+
+                del sys.modules[app_name]
+                del i_kapp
+            except:
+                pass
+
+            # avoids importing from flash VSF
+            vfs.exec_allowed(False)
+            os.chdir("/")
+
         del sig_data
         import gc
 
         gc.collect()
 
-        clean_name = filename_flash[:-4]
-        return self.execute_flash_kapp(clean_name)
+        return self.execute_flash_kapp(filename_flash[:-4], install_from_sd)

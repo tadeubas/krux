@@ -311,6 +311,7 @@ translation_array = [
     "Gastos (%d):",
     "Gasto:",
     "Modo padrão",
+    "Kapp de inicialização",
     "Estático",
     "Estatísticas para nerds",
     "Armazenar na memória flash",
