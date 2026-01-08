@@ -82,6 +82,7 @@ def urobj_to_data(ur_obj):
 
     if ur_obj.type == "crypto-bip39":
         data = urtypes.crypto.BIP39.from_cbor(ur_obj.cbor).words
+        data = " ".join(data)
     elif ur_obj.type == "crypto-account":
         data = (
             urtypes.crypto.Account.from_cbor(ur_obj.cbor)
@@ -324,6 +325,12 @@ class DatumToolMenu(Page):
         if fmt == 2:
             title += ", UR:" + contents.type
             contents = urobj_to_data(contents)
+
+        if isinstance(contents, bytes):
+            try:
+                contents = contents.decode()
+            except:
+                pass
 
         page = DatumTool(self.ctx)
         page.contents, page.title = contents, title
@@ -628,7 +635,7 @@ class DatumTool(Page):
             if pages[-1] < endpos < content_len:
                 pages.append(endpos)
 
-            offset_y = DEFAULT_PADDING + (info_len) * FONT_HEIGHT + 1
+            offset_y = DEFAULT_PADDING + info_len * FONT_HEIGHT + 1
             for line in lines:
                 self.ctx.display.draw_string(offset_x, offset_y, line)
                 offset_y += FONT_HEIGHT
@@ -822,7 +829,7 @@ class DatumTool(Page):
         menu = Menu(
             self.ctx,
             todo_menu,
-            offset=(info_len + 1) * FONT_HEIGHT + DEFAULT_PADDING + 2,
+            offset=info_len * FONT_HEIGHT + DEFAULT_PADDING,
             **back_status
         )
         _, status = menu.run_loop()

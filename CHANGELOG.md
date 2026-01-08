@@ -11,6 +11,25 @@ New tool for executing developer-signed utility apps that extend Krux functional
 ### New Device Support: WonderK PRO
 From the wonderful land of Korea, a new creation arrives: the WonderK PRO. Created by an entrepreneur who loves the Krux project, the WonderK follows in the footsteps of the WonderMV, but boasts a larger 2.8" display! Computer simulator for the WonderK device is also included.
 
+### Loading a Descriptor Sets Wallet Attributes
+Loading a descriptor is now a quick way to set wallet attributes, as all necessary information is extracted automatically. This eliminates the need for manual configuration and ensures consistency with your coordinator wallet.
+
+### Changed BIP39 Passphrase Validation
+Krux now displays a warning instead of blocking QR-encoded passphrases that contain non-ASCII characters. Users are encouraged to use QR codes containing only ASCII passphrases or non-ASCII that have already been normalized to NFKD.
+
+### Easier to Scan UR QR Codes
+Exported Uniform Resource (UR) QR codes, a widely adopted standard for exchanging PSBTs, now use uppercase data to reduce QR density, improving scan reliability without increasing the number of frames.
+
+### Other Bug Fixes and Improvements
+- Settings: Reduced default _Buttons Debounce_ value (with an even lower default on _M5StickV_)
+- Settings: Expanded value ranges for _Touch Threshold_ and _Buttons Debounce_
+- Swipe handling: Detection threshold has been slightly reduced
+- Keypad: Added backtick **`**
+- Bugfix: Screensaver not activating in menu pages without statusbar
+- Embit: Improved BIP39 mnemonic validation
+- Bug Fix: Corrected handling of certain binary-encoded QR codes
+- Fix fingerprint unset warn message for rare case
+- Improved QR code decoding performance and added inverted color QR code detection
 
 # Changelog 25.10.1 - October 2025
 
