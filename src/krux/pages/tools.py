@@ -34,7 +34,6 @@ from . import (
 from ..krux_settings import t
 import sys
 
-
 # TODO: re-enable "Create a QR Code" (and keypads ^^^) once encryption is possible w/o Datum Tool
 
 
