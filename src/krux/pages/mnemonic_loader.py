@@ -39,7 +39,6 @@ from ..key import Key
 from ..krux_settings import t
 from ..settings import CONTEXT_ARROW
 
-
 DIGITS_HEX = "0123456789ABCDEF"
 DIGITS_OCT = "01234567"
 

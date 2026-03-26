@@ -51,7 +51,6 @@ from ..kboard import kboard
 from ..settings import CONTEXT_ARROW
 from ..themes import theme
 
-
 DIGITS_HEX = "0123456789ABCDEF"
 DIGITS_OCT = "01234567"
 

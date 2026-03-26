@@ -1,4 +1,4 @@
-# Changelog 25.XX.X - XXX 2025
+# Changelog 26.03.0 - March 2025
 
 ### New Device Support: Embed Fire
 This device shares similarities with the WonderMV but stands out with its larger 2.4" touchscreen.
@@ -42,7 +42,7 @@ Battery level is now displayed as a percentage (configurable in settings). The o
 - UI: Other small changes and optimizations
 - Fix fingerprint unset warn message for rare case
 - Improved QR code decoding performance and added inverted color QR code detection
-- Improve scan TinySeed and other binary visibility by drawing punches only
+- Allow non deterministic chaincodes to be used with Taproot provably unspendable keys
 
 # Changelog 25.10.1 - October 2025
 

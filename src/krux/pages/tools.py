@@ -36,7 +36,6 @@ from ..settings import CONTEXT_ARROW
 from ..themes import theme
 import sys
 
-
 # TODO: re-enable "Create a QR Code" (and keypads ^^^) once encryption is possible w/o Datum Tool
 
 
