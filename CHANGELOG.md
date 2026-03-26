@@ -3,6 +3,11 @@
 ### New Device Support: Embed Fire
 This device shares similarities with the WonderMV but stands out with its larger 2.4" touchscreen.
 
+### Krux apps (Kapps)
+New tool for executing developer-signed utility apps that extend Krux functionality. Includes two initial Kapps: 
+- Nostr: Create or load your key using NIP-06 or NIP-19, and airgap-sign events
+- Steganography: Concel data within BMP image files
+
 ### New Device Support: WonderK PRO
 From the wonderful land of Korea, a new creation arrives: the WonderK PRO. Created by an entrepreneur who loves the Krux project, the WonderK follows in the footsteps of the WonderMV, but boasts a larger 2.8" display! Computer simulator for the WonderK device is also included.
 
@@ -15,14 +20,26 @@ Krux now displays a warning instead of blocking QR-encoded passphrases that cont
 ### Easier to Scan UR QR Codes
 Exported Uniform Resource (UR) QR codes, a widely adopted standard for exchanging PSBTs, now use uppercase data to reduce QR density, improving scan reliability without increasing the number of frames.
 
+### Battery Percentage Indicator
+Battery level is now displayed as a percentage (configurable in settings). The on-screen value updates automatically.
+
+### Improved UI
+- Added new context arrows, customizable colors, touch-feedback highlighting and a page index for menu navigation.
+- Refined keypad visuals with a clearer keyset index and touch-feedback highlighting.
+- Added touch-feedback highlighting to confirmation prompts, Category Settings, Stackbit 1248, Tinyseed and Mnemonic editor.
+
 ### Other Bug Fixes and Improvements
 - Settings: Reduced default _Buttons Debounce_ value (with an even lower default on _M5StickV_)
 - Settings: Expanded value ranges for _Touch Threshold_ and _Buttons Debounce_
-- Swipe handling: Detection threshold has been slightly reduced
+- Swipe handling: Diagonal and long-hold swipes are now discarded, and the swipe detection threshold has been slightly reduced
+- Touch handling: Discards touches near edges of adjacent regions
 - Keypad: Added backtick **`**
 - Bugfix: Screensaver not activating in menu pages without statusbar
+- Screensaver: Now appears on menu screens that display info boxes
 - Embit: Improved BIP39 mnemonic validation
-- Bug Fix: Corrected handling of certain binary-encoded QR codes
+- Bugfix: Corrected handling of certain binary-encoded QR codes
+- UI: Added contextual information to "Are you sure?" exit prompts
+- UI: Other small changes and optimizations
 - Fix fingerprint unset warn message for rare case
 - Improved QR code decoding performance and added inverted color QR code detection
 - Allow non deterministic chaincodes to be used with Taproot provably unspendable keys

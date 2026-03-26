@@ -19,6 +19,8 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
+# pylint: disable=unnecessary-lambda
+
 import time
 import board
 from .wdt import wdt
@@ -35,6 +37,7 @@ SWIPE_RIGHT = 4
 SWIPE_LEFT = 5
 SWIPE_UP = 6
 SWIPE_DOWN = 7
+SWIPE_FAIL = 99
 FAST_FORWARD = 8
 FAST_BACKWARD = 9
 
@@ -47,9 +50,11 @@ BUTTON_RELEASE_FILTER = 10 if kboard.need_release_filter else 1
 QR_ANIM_PERIOD = 300  # milliseconds
 LONG_PRESS_PERIOD = 1000  # milliseconds
 KEY_REPEAT_DELAY_MS = 100
+TOUCH_HIGHLIGHT_MS = 100
 
 BUTTON_WAIT_PRESS_DELAY = 10
 ONE_MINUTE = 60000
+UPDATE_CALLBACK_DELAY = 5000
 
 
 class Input:
@@ -175,36 +180,39 @@ class Input:
             return self.touch.event(validate_position)
         return False
 
+    def _swipe_check_value(self, swipe_fnc):
+        if kboard.has_touchscreen:
+            return swipe_fnc()
+        return RELEASED
+
+    def swipe_none_value(self):
+        """Intermediary method to pull touch gesture, if touch available"""
+        return self._swipe_check_value(lambda: self.touch.swipe_none_value())
+
     def swipe_right_value(self):
         """Intermediary method to pull touch gesture, if touch available"""
-        if kboard.has_touchscreen:
-            return self.touch.swipe_right_value()
-        return RELEASED
+        return self._swipe_check_value(lambda: self.touch.swipe_right_value())
 
     def swipe_left_value(self):
         """Intermediary method to pull touch gesture, if touch available"""
-        if kboard.has_touchscreen:
-            return self.touch.swipe_left_value()
-        return RELEASED
+        return self._swipe_check_value(lambda: self.touch.swipe_left_value())
 
     def swipe_up_value(self):
         """Intermediary method to pull touch gesture, if touch available"""
-        if kboard.has_touchscreen:
-            return self.touch.swipe_up_value()
-        return RELEASED
+        return self._swipe_check_value(lambda: self.touch.swipe_up_value())
 
     def swipe_down_value(self):
         """Intermediary method to pull touch gesture, if touch available"""
-        if kboard.has_touchscreen:
-            return self.touch.swipe_down_value()
-        return RELEASED
+        return self._swipe_check_value(lambda: self.touch.swipe_down_value())
 
     def wdt_feed_inc_entropy(self):
         """Feeds the watchdog and increments the input's entropy"""
         self.entropy += 1
         wdt.feed()
 
-    def _wait_for_press(self, block=True, wait_duration=QR_ANIM_PERIOD):
+    def _wait_for_press(
+        self, block=True, wait_duration=QR_ANIM_PERIOD, update_callback=None
+    ):
         """
         Wait for first button press or for wait_duration ms.
         Use block to wait indefinitely
@@ -226,6 +234,7 @@ class Input:
             self.flush_events()
             self.flushed_flag = not block
 
+        update_time = time.ticks_ms() - UPDATE_CALLBACK_DELAY
         while True:
             if self.enter_event():
                 return BUTTON_ENTER
@@ -242,6 +251,13 @@ class Input:
 
             if not block and time.ticks_ms() > start_time + wait_duration:
                 return None
+
+            if (
+                update_callback is not None
+                and time.ticks_ms() > update_time + UPDATE_CALLBACK_DELAY
+            ):
+                update_time = time.ticks_ms()
+                update_callback()
 
             time.sleep_ms(BUTTON_WAIT_PRESS_DELAY)
 
@@ -310,6 +326,10 @@ class Input:
             while self.touch_value() == PRESSED:
                 self.wdt_feed_inc_entropy()
             self.buttons_active = False
+
+            # Check if was a swipe
+            if self.swipe_none_value() == PRESSED:
+                return SWIPE_FAIL
             if self.swipe_right_value() == PRESSED:
                 return SWIPE_RIGHT
             if self.swipe_left_value() == PRESSED:
@@ -318,6 +338,8 @@ class Input:
                 return SWIPE_UP
             if self.swipe_down_value() == PRESSED:
                 return SWIPE_DOWN
+
+            # was a simple touch
             return BUTTON_TOUCH
 
         if btn in [BUTTON_ENTER, BUTTON_PAGE, BUTTON_PAGE_PREV]:
@@ -327,19 +349,23 @@ class Input:
 
         return btn
 
-    def wait_for_button(self, block=True, wait_duration=QR_ANIM_PERIOD):
+    def wait_for_button(
+        self, block=True, wait_duration=QR_ANIM_PERIOD, update_callback=None
+    ):
         """Waits for any button to release, optionally blocking if block=True.
         Returns the button that was released, or None if non blocking.
         """
         self.wait_for_release()
-        btn = self._wait_for_press(block, wait_duration)
+        btn = self._wait_for_press(block, wait_duration, update_callback)
         if btn is not None:
             auto_shutdown.feed()
         btn = self._detect_press_type(btn)
         self.debounce_time = time.ticks_ms()
         return btn
 
-    def wait_for_fastnav_button(self, block=True, wait_duration=QR_ANIM_PERIOD):
+    def wait_for_fastnav_button(
+        self, block=True, wait_duration=QR_ANIM_PERIOD, update_callback=None
+    ):
         """Wait for a button press, with support for fast navigation."""
         if self.page_value() == PRESSED:
             time.sleep_ms(KEY_REPEAT_DELAY_MS)
@@ -349,7 +375,7 @@ class Input:
             if kboard.is_yahboom:
                 return FAST_FORWARD
             return FAST_BACKWARD
-        return self.wait_for_button(block, wait_duration)
+        return self.wait_for_button(block, wait_duration, update_callback)
 
     def flush_events(self):
         """Clean eventual event flags unintentionally collected"""

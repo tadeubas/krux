@@ -24,8 +24,8 @@ from ...qr import FORMAT_NONE
 from ...sd_card import B64_FILE_EXTENSION
 from ...baseconv import base_encode
 from ...display import BOTTOM_PROMPT_LINE, FONT_HEIGHT, DEFAULT_PADDING
-from ...krux_settings import t
-from ...krux_settings import Settings
+from ...krux_settings import t, Settings
+from ...settings import CONTEXT_ARROW
 from .. import (
     Menu,
     Page,
@@ -159,16 +159,19 @@ class Bip85(Page):
                     ),
                 ),
             ]
-            self.ctx.display.clear()
-            info_len = self.ctx.display.draw_hcentered_text(
-                info, info_box=True, highlight_prefix=":"
-            )
-            info_len *= FONT_HEIGHT
-            info_len += DEFAULT_PADDING
+
+            def _print_infobox():
+                self.ctx.display.clear()
+                return self.ctx.display.draw_hcentered_text(
+                    info, info_box=True, highlight_prefix=":"
+                )
+
+            info_len = _print_infobox()
             submenu = Menu(
                 self.ctx,
                 menu_items,
-                offset=info_len,
+                offset=info_len * FONT_HEIGHT + DEFAULT_PADDING,
+                infobox_callback=_print_infobox,
             )
             index, _ = submenu.run_loop()
             if index == submenu.back_index:
@@ -180,7 +183,7 @@ class Bip85(Page):
         submenu = Menu(
             self.ctx,
             [
-                (t("BIP39 Mnemonic"), self._derive_mnemonic),
+                (t("BIP39 Mnemonic") + CONTEXT_ARROW, self._derive_mnemonic),
                 (t("Base64 Password"), self._derive_base64_password),
             ],
         )

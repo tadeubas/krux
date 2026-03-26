@@ -22,6 +22,7 @@
 
 from ...display import FONT_HEIGHT
 from ...krux_settings import t
+from ...settings import CONTEXT_ARROW
 from .. import (
     Page,
     Menu,
@@ -78,19 +79,28 @@ class PubkeyView(Page):
                 + "\n\n"
                 + full_pub_key
             )
+
+            def _print_infobox():
+                self.ctx.display.clear()
+                self.ctx.display.draw_hcentered_text(
+                    info_text,
+                    offset_y=FONT_HEIGHT,
+                    info_box=True,
+                )
+                self.ctx.display.draw_hcentered_text(
+                    self.ctx.wallet.key.fingerprint_hex_str(pretty=True),
+                    offset_y=FONT_HEIGHT,
+                    color=theme.highlight_color,
+                    bg_color=theme.info_bg_color,
+                )
+
+            _print_infobox()
             menu_offset = (len(self.ctx.display.to_lines(info_text)) + 1) * FONT_HEIGHT
-            pub_key_menu = Menu(self.ctx, pub_text_menu_items, offset=menu_offset)
-            self.ctx.display.clear()
-            self.ctx.display.draw_hcentered_text(
-                info_text,
-                offset_y=FONT_HEIGHT,
-                info_box=True,
-            )
-            self.ctx.display.draw_hcentered_text(
-                self.ctx.wallet.key.fingerprint_hex_str(pretty=True),
-                offset_y=FONT_HEIGHT,
-                color=theme.highlight_color,
-                bg_color=theme.info_bg_color,
+            pub_key_menu = Menu(
+                self.ctx,
+                pub_text_menu_items,
+                offset=menu_offset,
+                infobox_callback=_print_infobox,
             )
             pub_key_menu.run_loop()
 
@@ -119,7 +129,10 @@ class PubkeyView(Page):
                 :WALLET_XPUB_START
             ].upper()
             pub_key_menu_items.append(
-                (title + " - " + t("Text"), lambda ver=version: _pub_key_text(ver))
+                (
+                    title + " - " + t("Text") + CONTEXT_ARROW,
+                    lambda ver=version: _pub_key_text(ver),
+                )
             )
             pub_key_menu_items.append(
                 (title + " - " + t("QR Code"), lambda ver=version: _pub_key_qr(ver))

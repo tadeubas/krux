@@ -46,7 +46,7 @@ from .kboard import kboard
 
 BAUDRATES = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200]
 
-TC_CODE_PATH = "/flash/tcc"
+TC_CODE_PATH = "/" + FLASH_PATH + "/tcc"
 TC_CODE_PBKDF2_ITERATIONS = 100000
 
 DEFAULT_LOCALE = "en-US"
@@ -310,6 +310,19 @@ class ButtonsSettings(SettingsNamespace):
         }[attr]
 
 
+class BatterySettings(SettingsNamespace):
+    """Battery display settings"""
+
+    namespace = "settings.battery"
+    percentage = CategorySetting("percentage", True, [False, True])
+
+    def label(self, attr):
+        """Returns a label for UI when given a setting name or namespace"""
+        return {
+            "percentage": t("Percentage"),
+        }[attr]
+
+
 class TouchSettings(SettingsNamespace):
     """Touch sensitivity settings"""
 
@@ -376,6 +389,8 @@ class HardwareSettings(SettingsNamespace):
     def __init__(self):
         self.printer = PrinterSettings()
         self.buttons = ButtonsSettings()
+        if kboard.has_battery:
+            self.battery = BatterySettings()
         if board.config["krux"]["display"].get("touch", False):
             self.touch = TouchSettings()
         if kboard.is_amigo:
@@ -390,6 +405,8 @@ class HardwareSettings(SettingsNamespace):
             "printer": t("Printer"),
         }
         hardware_menu["buttons"] = t("Buttons")
+        if kboard.has_battery:
+            hardware_menu["battery"] = t("Battery")
         if board.config["krux"]["display"].get("touch", False):
             hardware_menu["touchscreen"] = t("Touchscreen")
         if kboard.is_amigo:
@@ -476,6 +493,7 @@ class SecuritySettings(SettingsNamespace):
     auto_shutdown = NumberSetting(int, "auto_shutdown", 10, [0, 60])
     hide_mnemonic = CategorySetting("hide_mnemonic", False, [False, True])
     boot_flash_hash = CategorySetting("boot_flash_hash", False, [False, True])
+    allow_kapp = CategorySetting("allow_kapp", False, [False, True])
 
     def label(self, attr):
         """Returns a label for UI when given a setting name or namespace"""
@@ -483,6 +501,7 @@ class SecuritySettings(SettingsNamespace):
             "auto_shutdown": t("Shutdown Time"),
             "hide_mnemonic": t("Hide Mnemonics"),
             "boot_flash_hash": t("TC Flash Hash at Boot"),
+            "allow_kapp": t("Allow Krux apps"),
         }[attr]
 
 

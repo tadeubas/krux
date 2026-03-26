@@ -159,28 +159,31 @@ class DeviceTests(Page):
                 wdt.feed()
 
         # info_box summary
-        self.ctx.display.clear()
-        failures = len([x for x in self.results if not x[1]])
-        total = len(self.results)
-        num_lines = self.ctx.display.draw_hcentered_text(
-            "\n".join(
-                [
-                    x
-                    for x in [
-                        t("Test Suite Results"),
-                        t("success rate:")
-                        + " {}%".format(int((total - failures) / (total) * 100)),
-                        (
-                            t("failed:") + " {}/{}".format(failures, total)
-                            if failures
-                            else None
-                        ),
+        def _print_infobox():
+            self.ctx.display.clear()
+            failures = len([x for x in self.results if not x[1]])
+            total = len(self.results)
+            return self.ctx.display.draw_hcentered_text(
+                "\n".join(
+                    [
+                        x
+                        for x in [
+                            t("Test Suite Results"),
+                            t("success rate:")
+                            + " {}%".format(int((total - failures) / (total) * 100)),
+                            (
+                                t("failed:") + " {}/{}".format(failures, total)
+                                if failures
+                                else None
+                            ),
+                        ]
+                        if x is not None
                     ]
-                    if x is not None
-                ]
-            ),
-            info_box=True,
-        )
+                ),
+                info_box=True,
+            )
+
+        num_lines = _print_infobox()
 
         # results menu
         line_fmt = "{:" + str(chars_per_line - 3) + "s} {:>2s}"
@@ -201,6 +204,7 @@ class DeviceTests(Page):
                 for x in self.results
             ],
             offset=(num_lines + 1) * FONT_HEIGHT,
+            infobox_callback=_print_infobox,
         )
         idx, _ = results_menu.run_loop()
         if idx == len(self.results):
@@ -344,8 +348,7 @@ class DeviceTests(Page):
         churns nonce through sha256() and pbkdf_hmac(sha256,) calls,
         raises ValueError if calculated results don't match expected results
         """
-        from uhashlib_hw import sha256 as f_hash
-        from uhashlib_hw import pbkdf2_hmac_sha256 as f_hmac
+        from uhashlib_hw import sha256 as f_hash, pbkdf2_hmac_sha256 as f_hmac
 
         # pylint: disable=C0301
         expecteds = [

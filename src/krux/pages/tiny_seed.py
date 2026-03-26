@@ -43,6 +43,9 @@ from ..input import (
     BUTTON_TOUCH,
     FAST_FORWARD,
     FAST_BACKWARD,
+    SWIPE_FAIL,
+    SWIPE_LEFT,
+    TOUCH_HIGHLIGHT_MS,
 )
 from ..bip39 import entropy_checksum
 from ..kboard import kboard
@@ -93,7 +96,7 @@ class TinySeed(Page):
 
     def _draw_labels(self, page):
         """Draws labels for import and export Tinyseed UI"""
-        self.ctx.display.draw_hcentered_text(self.label)
+        self.ctx.display.draw_hcentered_text(self.label, color=theme.highlight_color)
         # For non‑minimal displays, show extra bit numbers (rotate to landscape temporarily)
         if not kboard.has_minimal_display:
             self.ctx.display.to_landscape()
@@ -248,7 +251,7 @@ class TinySeed(Page):
         """Outline index position"""
         height = self.y_pad - 2
         y_pos = (index // 12) * self.y_pad + self.y_offset + 1
-        if index < TS_LAST_BIT_NO_CS:
+        if index < TS_ESC_START_POSITION:
             x_pos = (index % 12) * self.x_pad + self.x_offset + 1
             width = self.x_pad - 2
             self.ctx.display.outline(x_pos, y_pos, width, height, theme.fg_color)
@@ -339,6 +342,8 @@ class TinySeed(Page):
                 )
             elif index <= TS_GO_POSITION:
                 index = TS_ESC_END_POSITION
+        elif btn == SWIPE_LEFT:
+            index = TS_GO_POSITION
         return index
 
     def enter_tiny_seed(self, w24=False, seed_numbers=None, scanning_24=False):
@@ -359,6 +364,8 @@ class TinySeed(Page):
         self._map_keys_array()
         page = 0
         menu_offset = self.y_offset + 12 * self.y_pad
+        go_str = t("Go")
+        no_str = t("Esc")
         while True:
             self._draw_labels(page)
             self._draw_grid()
@@ -366,19 +373,44 @@ class TinySeed(Page):
                 self._draw_disabled(w24)
                 tiny_seed_numbers = self._auto_checksum(tiny_seed_numbers)
             self._draw_punched(tiny_seed_numbers, page)
-            menu_index = (
+            esc_go_index = (
                 1
-                if index >= TS_GO_POSITION
+                if index > TS_ESC_END_POSITION
                 else (0 if index >= TS_ESC_START_POSITION else None)
             )
-            self.draw_proceed_menu(t("Go"), t("Esc"), menu_offset, menu_index)
+            self.draw_proceed_menu(go_str, no_str, menu_offset, esc_go_index)
             if self.ctx.input.buttons_active:
                 self._draw_index(index)
 
-            btn = self.ctx.input.wait_for_fastnav_button()
-            if btn == BUTTON_TOUCH:
-                btn = BUTTON_ENTER
-                index = self.ctx.input.touch.current_index()
+            # wait until valid input is captured
+            btn = BUTTON_TOUCH
+            while btn in (BUTTON_TOUCH, SWIPE_FAIL):
+                btn = self.ctx.input.wait_for_fastnav_button()
+                if btn == BUTTON_TOUCH:
+                    index = self.ctx.input.touch.current_index()
+                    # Ignore clicks on invalid indexes (avoids redraw screen)
+                    disabled_indexes = 4 if not w24 else (8 if page else 0)
+                    if (
+                        index < 0
+                        or TS_LAST_BIT_NO_CS - disabled_indexes
+                        < index
+                        < TS_ESC_START_POSITION
+                    ):
+                        continue
+
+                    # Highlight the touched btn
+                    if index < TS_ESC_START_POSITION:
+                        self._draw_index(index)
+                    else:  # "Go" or "Esc"
+                        self.draw_proceed_menu(
+                            go_str,
+                            no_str,
+                            menu_offset,
+                            1 if index > TS_ESC_END_POSITION else 0,
+                            highlight=True,
+                        )
+                    time.sleep_ms(TOUCH_HIGHLIGHT_MS)  # wait a little
+                    btn = BUTTON_ENTER
             if btn == BUTTON_ENTER:
                 if index > TS_ESC_END_POSITION:  # "Go"
                     if not w24 or (w24 and (page or scanning_24)):
@@ -388,7 +420,10 @@ class TinySeed(Page):
                     page += 1
                 elif index >= TS_ESC_START_POSITION:  # "Esc"
                     self.ctx.display.clear()
-                    if self.prompt(t("Are you sure?"), self.ctx.display.height() // 2):
+                    if self.prompt(
+                        t("Back to Menu") + "\n\n" + t("Are you sure?"),
+                        self.ctx.display.height() >> 1,
+                    ):
                         break
                     self._map_keys_array()
                 elif _editable_bit():
@@ -633,24 +668,6 @@ class TinyScanner(Page):
             img.draw_rectangle(outline, lcd.WHITE, thickness=thickness)
         return rect
 
-    def _draw_grid(self, img):
-        if not kboard.has_minimal_display:
-            for i in range(13):
-                img.draw_line(
-                    self.x_regions[i],
-                    self.y_regions[0],
-                    self.x_regions[i],
-                    self.y_regions[-1],
-                    lcd.WHITE,
-                )
-                img.draw_line(
-                    self.x_regions[0],
-                    self.y_regions[i],
-                    self.x_regions[-1],
-                    self.y_regions[i],
-                    lcd.WHITE,
-                )
-
     def _detect_and_draw_punches(self, img):
         """Detect punched bits on the grid and update the seed numbers accordingly."""
         page_seed_numbers = [0] * 12
@@ -811,7 +828,6 @@ class TinyScanner(Page):
                 self._gradient_corners(rect, img)
                 self._map_punches_region(rect, page)
                 page_seed_numbers = self._detect_and_draw_punches(img)
-                self._draw_grid(img)
             if kboard.is_m5stickv:
                 img.lens_corr(strength=1.0, zoom=0.56)
             if kboard.is_amigo:
